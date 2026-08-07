@@ -214,6 +214,17 @@ export default function StaffPage() {
   const occupiedRescheduleSlots = useMemo(() => bookings
     .filter(item => item.id !== reschedulingId && item.booking_date === rescheduleDate && (item.status === "new" || item.status === "confirmed"))
     .map(item => item.booking_time.slice(0, 5)), [bookings, rescheduleDate, reschedulingId]);
+  const scheduleDate = selectedDate === "all" ? localDate() : selectedDate;
+  const scheduleBookings = useMemo(() => new Map(bookings
+    .filter(item => item.booking_date === scheduleDate && (item.status === "new" || item.status === "confirmed"))
+    .map(item => [item.booking_time.slice(0, 5), item])), [bookings, scheduleDate]);
+
+  function openWalkInAt(slot: string) {
+    setWalkInDate(scheduleDate);
+    setWalkInTime(slot);
+    setWalkInOpen(true);
+    setWalkInMessage("");
+  }
 
   useEffect(() => {
     if (occupiedWalkInSlots.includes(walkInTime)) {
@@ -439,6 +450,7 @@ export default function StaffPage() {
       {staffRole === "owner" && <section className="staffReport" aria-label="Отчёт по выполненным машинам"><div className="reportHead"><span>ОТЧЁТ ВЛАДЕЛЬЦА</span><h2>Результаты мойки</h2><small>Работники этот блок не видят</small></div><div className="reportNumbers"><div><span>Сегодня</span><b>{report.today}</b><small>машин</small></div><div><span>7 дней</span><b>{report.week}</b><small>машин</small></div><div className="reportAccent"><span>Этот месяц</span><b>{report.month}</b><small>машин</small></div><div><span>Онлайн</span><b>{report.online}</b><small>за месяц</small></div><div><span>Без записи</span><b>{report.walkIn}</b><small>за месяц</small></div></div></section>}
       <div className="staffSearch"><span>⌕</span><input type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Поиск по имени, телефону, машине или госномеру" aria-label="Поиск заявок" />{search && <button onClick={() => setSearch("")} aria-label="Очистить поиск">×</button>}</div>
       <div className="staffDays"><button className={selectedDate === "all" ? "active" : ""} onClick={() => setSelectedDate("all")}>Все дни</button>{dashboardDates.map(item => <button className={selectedDate === item.iso ? "active" : ""} onClick={() => setSelectedDate(item.iso)} key={item.iso}>{item.label}</button>)}</div>
+      <section className="daySchedule" aria-label="Расписание выбранного дня"><div className="dayScheduleHead"><div><span>РАСПИСАНИЕ ДНЯ</span><h2>{new Intl.DateTimeFormat("ru-RU", { weekday: "long", day: "numeric", month: "long" }).format(new Date(`${scheduleDate}T12:00:00`))}</h2></div><p><i /> занято <b /> свободно</p></div><div className="dayScheduleGrid">{bookingSlots.map(slot => { const booking = scheduleBookings.get(slot); return booking ? <article className={`scheduleSlot ${booking.status}`} key={slot}><time>{slot}</time><div><strong>{booking.customer_name}</strong><span>{booking.car} · {vehicleNames[booking.vehicle_type]}</span></div><em>{booking.license_plate}</em><small>{booking.status === "confirmed" ? "Подтверждена" : "Новая"}</small></article> : <button className="scheduleSlot free" onClick={() => openWalkInAt(slot)} key={slot}><time>{slot}</time><strong>Свободно</strong><span>+ Добавить клиента</span></button>; })}</div></section>
       {walkInOpen && <form className="walkInCard" onSubmit={createWalkIn}>
         <div className="walkInHead"><div><small>БЕЗ ПРЕДВАРИТЕЛЬНОЙ ЗАПИСИ</small><h2>Добавить клиента на месте</h2></div><button type="button" onClick={() => setWalkInOpen(false)} aria-label="Закрыть">×</button></div>
         <div className="walkInFields walkInThree"><label>Тип машины<select name="vehicleType" defaultValue="sedan"><option value="sedan">Седан</option><option value="crossover">Кроссовер</option><option value="van">Бус</option></select></label><label>Услуга<select name="service" defaultValue="complex">{siteSettings.services.map(item => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label><label>Дата<input type="date" value={walkInDate} min={localDate()} max={localDate(90)} onChange={event => setWalkInDate(event.target.value)} required /></label></div>
