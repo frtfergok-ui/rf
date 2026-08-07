@@ -1,5 +1,6 @@
-import { getDb } from "../../../db";
-import { bookings } from "../../../db/schema";
+import { env } from "cloudflare:workers";
+
+const allowedServices = new Set(["express", "complex", "detailing"]);
 
 export async function POST(request: Request) {
   try {
@@ -10,20 +11,53 @@ export async function POST(request: Request) {
         return Response.json({ error: "Заполните все поля" }, { status: 400 });
       }
     }
-    const phone = String(payload.phone).replace(/[^\d+]/g, "");
-    if (phone.length < 10) return Response.json({ error: "Проверьте номер телефона" }, { status: 400 });
 
-    const db = getDb();
-    const [booking] = await db.insert(bookings).values({
-      service: String(payload.service), bookingDate: String(payload.date), bookingTime: String(payload.time),
-      customerName: String(payload.name).trim(), phone, car: String(payload.car).trim(),
-    }).returning();
-    return Response.json({ booking }, { status: 201 });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Не удалось создать запись";
-    if (message.includes("UNIQUE") || message.includes("idx_bookings_slot")) {
-      return Response.json({ error: "Это время только что заняли. Выберите другой слот." }, { status: 409 });
+    const service = String(payload.service);
+    const phone = String(payload.phone).replace(/[^\d+]/g, "");
+    const name = String(payload.name).trim();
+    const car = String(payload.car).trim();
+    const date = String(payload.date);
+    const time = String(payload.time);
+
+    if (!allowedServices.has(service)) return Response.json({ error: "Выберите услугу" }, { status: 400 });
+    if (phone.length < 10 || phone.length > 20) return Response.json({ error: "Проверьте номер телефона" }, { status: 400 });
+    if (name.length < 2 || name.length > 80 || car.length < 2 || car.length > 120) {
+      return Response.json({ error: "Проверьте имя и автомобиль" }, { status: 400 });
     }
+
+    const runtimeEnv = env as unknown as Record<string, string | undefined>;
+    const supabaseUrl = runtimeEnv.SUPABASE_URL || process.env.SUPABASE_URL;
+    const publishableKey = runtimeEnv.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_PUBLISHABLE_KEY;
+    if (!supabaseUrl || !publishableKey) throw new Error("Supabase environment is not configured");
+
+    const response = await fetch(`${supabaseUrl}/rest/v1/bookings`, {
+      method: "POST",
+      headers: {
+        apikey: publishableKey,
+        Authorization: `Bearer ${publishableKey}`,
+        "Content-Type": "application/json",
+        Prefer: "return=minimal",
+      },
+      body: JSON.stringify({
+        service,
+        booking_date: date,
+        booking_time: time,
+        customer_name: name,
+        phone,
+        car,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = (await response.json().catch(() => ({}))) as { code?: string; message?: string };
+      if (response.status === 409 || error.code === "23505") {
+        return Response.json({ error: "Это время только что заняли. Выберите другой слот." }, { status: 409 });
+      }
+      throw new Error(error.message || `Supabase request failed: ${response.status}`);
+    }
+
+    return Response.json({ ok: true }, { status: 201 });
+  } catch {
     return Response.json({ error: "Сервис временно недоступен. Позвоните нам." }, { status: 500 });
   }
 }
