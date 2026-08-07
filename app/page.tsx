@@ -5,13 +5,17 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 type Locale = "ro" | "ru" | "en";
 type VehicleType = "sedan" | "crossover" | "van";
 type ServiceConfig = { id: "express" | "complex" | "detailing"; name: string; note: string; prices: Record<VehicleType, string>; time: string };
-type SiteSettings = { phone: string; address: string; hours: string; telegramUrl: string; services: ServiceConfig[] };
+type SiteSettings = { phone: string; address: string; hours: string; telegramUrl: string; instagramUrl: string; whatsappUrl: string; tiktokUrl: string; googleMapsUrl: string; services: ServiceConfig[] };
 
 const defaultSettings: SiteSettings = {
   phone: "+7 999 123-45-67",
   address: "ул. Автомобильная, 12",
   hours: "Ежедневно 10:00–22:00",
   telegramUrl: "https://t.me/",
+  instagramUrl: "https://www.instagram.com/",
+  whatsappUrl: "https://wa.me/37368210010",
+  tiktokUrl: "https://www.tiktok.com/",
+  googleMapsUrl: "https://www.google.com/maps/search/?api=1&query=BALTI+EVIMALL",
   services: [
     { id: "express", name: "Экспресс", note: "Кузов · диски · сушка", prices: { sedan: "350 ₽", crossover: "450 ₽", van: "550 ₽" }, time: "25 мин" },
     { id: "complex", name: "Комплекс", note: "Кузов · салон · стёкла", prices: { sedan: "790 ₽", crossover: "950 ₽", van: "1 150 ₽" }, time: "55 мин" },
@@ -70,7 +74,6 @@ export default function Home() {
     ...serviceVisuals[item.id],
   })), [settings.services, locale, vehicleType]);
   const phoneHref = `tel:${settings.phone.replace(/[^\d+]/g, "")}`;
-  const whatsappHref = `https://wa.me/${settings.phone.replace(/\D/g, "")}`;
 
   useEffect(() => {
     let active = true;
@@ -136,7 +139,7 @@ export default function Home() {
           <div className="eyebrow"><i /> {text.eyebrow}</div>
           <h1>{text.hero}</h1>
           <p>{text.heroText}</p>
-          <div className="heroActions"><a className="primary" href="#booking">{text.book} <b>↗</b></a><span>★ 4.9 <small>Google Maps</small></span></div>
+          <div className="heroActions"><a className="primary" href="#booking">{text.book} <b>↗</b></a><a className="mapRating" href={settings.googleMapsUrl} target="_blank" rel="noreferrer">★ 4.9 <small>Google Maps ↗</small></a></div>
         </div>
         <div className="heroVisual" aria-label="Автомобиль MALL AUTO WASH">
           <div className="heroTag">MALL / AUTO CARE</div><div className="glow" /><img className="heroCar" src="/vehicle-sedan.png" alt="Современный седан" />
@@ -173,7 +176,7 @@ export default function Home() {
         </div>
       </section>
 
-      <footer id="contacts"><div className="shell footerGrid"><div><a className="brand" href="#top"><img src="/mall-autowash-logo.png" alt="MALL AUTOWASH" /></a><p>{text.slogan}</p></div><div><small>{text.address}</small><p>{displayedAddress}<br />{displayedHours}</p></div><div><small>{text.reach}</small><a href={phoneHref}>{settings.phone}</a><div className="socialLinks"><a href={settings.telegramUrl} target="_blank" rel="noreferrer">Telegram ↗</a><a href={whatsappHref} target="_blank" rel="noreferrer">WhatsApp ↗</a><a href="https://www.instagram.com/" target="_blank" rel="noreferrer">Instagram ↗</a><a href="https://www.tiktok.com/" target="_blank" rel="noreferrer">TikTok ↗</a></div></div></div><div className="shell copyright">© 2026 MALL AUTO WASH</div></footer>
+      <footer id="contacts"><div className="shell footerGrid"><div><a className="brand" href="#top"><img src="/mall-autowash-logo.png" alt="MALL AUTOWASH" /></a><p>{text.slogan}</p></div><div><small>{text.address}</small><p>{displayedAddress}<br />{displayedHours}</p><a className="mapsLink" href={settings.googleMapsUrl} target="_blank" rel="noreferrer">Google Maps ↗</a></div><div><small>{text.reach}</small><a href={phoneHref}>{settings.phone}</a><div className="socialLinks"><a href={settings.telegramUrl} target="_blank" rel="noreferrer">Telegram ↗</a><a href={settings.whatsappUrl} target="_blank" rel="noreferrer">WhatsApp ↗</a><a href={settings.instagramUrl} target="_blank" rel="noreferrer">Instagram ↗</a><a href={settings.tiktokUrl} target="_blank" rel="noreferrer">TikTok ↗</a></div></div></div><div className="shell copyright">© 2026 MALL AUTO WASH</div></footer>
     </main>
   );
 }

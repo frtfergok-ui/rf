@@ -1,7 +1,7 @@
 import { env } from "cloudflare:workers";
 
 type ServiceConfig = { id: "express" | "complex" | "detailing"; name: string; note: string; prices: Record<"sedan" | "crossover" | "van", string>; time: string };
-type SettingsRow = { phone: string; address: string; hours: string; telegram_url: string; services: ServiceConfig[] };
+type SettingsRow = { phone: string; address: string; hours: string; telegram_url: string; instagram_url: string; whatsapp_url: string; tiktok_url: string; google_maps_url: string; services: ServiceConfig[] };
 
 function getSupabaseConfig() {
   const runtimeEnv = env as unknown as Record<string, string | undefined>;
@@ -14,7 +14,7 @@ function getSupabaseConfig() {
 export async function GET() {
   try {
     const { supabaseUrl, publishableKey } = getSupabaseConfig();
-    const query = new URLSearchParams({ select: "phone,address,hours,telegram_url,services", id: "eq.1" });
+    const query = new URLSearchParams({ select: "phone,address,hours,telegram_url,instagram_url,whatsapp_url,tiktok_url,google_maps_url,services", id: "eq.1" });
     const response = await fetch(`${supabaseUrl}/rest/v1/site_settings?${query}`, {
       headers: { apikey: publishableKey, Authorization: `Bearer ${publishableKey}` },
       cache: "no-store",
@@ -23,7 +23,7 @@ export async function GET() {
     const rows = (await response.json()) as SettingsRow[];
     const row = rows[0];
     if (!row || !Array.isArray(row.services) || row.services.length !== 3) throw new Error("Settings are incomplete");
-    return Response.json({ phone: row.phone, address: row.address, hours: row.hours, telegramUrl: row.telegram_url, services: row.services }, { headers: { "Cache-Control": "no-store" } });
+    return Response.json({ phone: row.phone, address: row.address, hours: row.hours, telegramUrl: row.telegram_url, instagramUrl: row.instagram_url, whatsappUrl: row.whatsapp_url, tiktokUrl: row.tiktok_url, googleMapsUrl: row.google_maps_url, services: row.services }, { headers: { "Cache-Control": "no-store" } });
   } catch {
     return Response.json({ error: "Не удалось загрузить настройки" }, { status: 500 });
   }

@@ -24,9 +24,9 @@ type Booking = {
   whatsapp_sent_at: string | null;
 };
 
-type StaffRole = "owner" | "worker";
+type StaffRole = "owner" | "manager";
 type ServiceConfig = { id: Booking["service"]; name: string; note: string; prices: Record<Booking["vehicle_type"], string>; time: string };
-type SiteSettings = { phone: string; address: string; hours: string; telegram_url: string; services: ServiceConfig[] };
+type SiteSettings = { phone: string; address: string; hours: string; telegram_url: string; instagram_url: string; whatsapp_url: string; tiktok_url: string; google_maps_url: string; services: ServiceConfig[] };
 type AccessRequest = { user_id: string; email: string; display_name: string; status: "pending" | "approved" | "rejected"; created_at: string };
 type TeamMember = { id: string; email: string; display_name: string; role: StaffRole; active: boolean; created_at: string };
 
@@ -35,6 +35,10 @@ const defaultSiteSettings: SiteSettings = {
   address: "ул. Автомобильная, 12",
   hours: "Ежедневно 10:00–22:00",
   telegram_url: "https://t.me/",
+  instagram_url: "https://www.instagram.com/",
+  whatsapp_url: "https://wa.me/37368210010",
+  tiktok_url: "https://www.tiktok.com/",
+  google_maps_url: "https://www.google.com/maps/search/?api=1&query=BALTI+EVIMALL",
   services: [
     { id: "express", name: "Экспресс", note: "Кузов · диски · сушка", prices: { sedan: "350 ₽", crossover: "450 ₽", van: "550 ₽" }, time: "25 мин" },
     { id: "complex", name: "Комплекс", note: "Кузов · салон · стёкла", prices: { sedan: "790 ₽", crossover: "950 ₽", van: "1 150 ₽" }, time: "55 мин" },
@@ -126,7 +130,7 @@ export default function StaffPage() {
     setStaffName(staff.display_name);
     setStaffRole(staff.role as StaffRole);
     setRequestStatus(null);
-    const { data: settings } = await supabase.from("site_settings").select("phone,address,hours,telegram_url,services").eq("id", 1).maybeSingle();
+    const { data: settings } = await supabase.from("site_settings").select("phone,address,hours,telegram_url,instagram_url,whatsapp_url,tiktok_url,google_maps_url,services").eq("id", 1).maybeSingle();
     if (settings) setSiteSettings(settings as SiteSettings);
     if (staff.role === "owner") {
       const [{ data: requests }, { data: team }] = await Promise.all([
@@ -265,7 +269,7 @@ export default function StaffPage() {
   async function approveAccess(request: AccessRequest) {
     if (!session || staffRole !== "owner") return;
     setTeamMessage("");
-    const { error: insertError } = await supabase.from("staff_users").insert({ id: request.user_id, email: request.email, display_name: request.display_name, role: "worker", active: true });
+    const { error: insertError } = await supabase.from("staff_users").insert({ id: request.user_id, email: request.email, display_name: request.display_name, role: "manager", active: true });
     if (insertError && insertError.code !== "23505") {
       setTeamMessage("Не удалось добавить сотрудника.");
       return;
@@ -311,6 +315,10 @@ export default function StaffPage() {
       address: String(form.get("address") ?? "").trim(),
       hours: String(form.get("hours") ?? "").trim(),
       telegram_url: String(form.get("telegram_url") ?? "").trim(),
+      instagram_url: String(form.get("instagram_url") ?? "").trim(),
+      whatsapp_url: String(form.get("whatsapp_url") ?? "").trim(),
+      tiktok_url: String(form.get("tiktok_url") ?? "").trim(),
+      google_maps_url: String(form.get("google_maps_url") ?? "").trim(),
       services,
     };
     setSettingsSaving(true);
@@ -424,7 +432,7 @@ export default function StaffPage() {
   if (!authReady) return <main className="staffApp"><div className="staffLoader">Загрузка…</div></main>;
 
   if (!session) return <main className="staffApp loginScreen"><section className="loginCard">
-    <div className="staffBrand"><b>M</b><span>MALL AUTO WASH<small>Панель сотрудника</small></span></div>
+    <div className="staffBrand"><img src="/mall-autowash-logo.png" alt="MALL AUTOWASH" /><span><small>Панель сотрудника</small></span></div>
     <h1>{authMode === "login" ? "Вход в рабочее приложение" : "Стать сотрудником"}</h1><p>{authMode === "login" ? "Введи рабочий email и пароль. После входа приложение запомнит тебя на этом устройстве." : "Создай аккаунт. Владелец увидит заявку и откроет доступ к рабочей панели."}</p>
     <div className="authTabs"><button className={authMode === "login" ? "active" : ""} onClick={() => { setAuthMode("login"); setAuthMessage(""); }}>Вход</button><button className={authMode === "register" ? "active" : ""} onClick={() => { setAuthMode("register"); setAuthMessage(""); }}>Регистрация</button></div>
     <form onSubmit={authMode === "login" ? signIn : register}>
@@ -443,7 +451,7 @@ export default function StaffPage() {
   </section></main>;
 
   return <main className="staffApp">
-    <header className="staffHeader"><div className="staffBrand"><b>M</b><span>MALL AUTO WASH<small>{staffRole === "owner" ? "Панель владельца" : "Рабочая панель"}</small></span></div><div className="staffUser"><span><b>{staffName}</b><small>{session.user.email}</small></span><button onClick={() => supabase.auth.signOut()}>Выйти</button></div></header>
+    <header className="staffHeader"><div className="staffBrand"><img src="/mall-autowash-logo.png" alt="MALL AUTOWASH" /><span><small>{staffRole === "owner" ? "Панель владельца" : "Панель менеджера"}</small></span></div><div className="staffUser"><span><b>{staffName}</b><small>{staffRole === "owner" ? "Владелец" : "Менеджер"} · {session.user.email}</small></span><button onClick={() => supabase.auth.signOut()}>Выйти</button></div></header>
     <section className="staffContent">
       <div className="staffTitle"><div><span>ЗАЯВКИ</span><h1>Записи клиентов</h1></div><div className="staffTitleActions">{staffRole === "owner" && <><button className="teamButton" onClick={() => { setTeamOpen(true); setTeamMessage(""); }}>👥 Сотрудники{pendingRequests.length > 0 && <b>{pendingRequests.length}</b>}</button><button className="ownerSettingsButton" onClick={() => { setSettingsOpen(true); setSettingsMessage(""); }}>⚙ Настройки сайта</button></>}<button className="addWalkIn" onClick={() => { setWalkInOpen(current => !current); setWalkInMessage(""); }}>+ Клиент на месте</button><button onClick={loadDashboard} disabled={loading}>{loading ? "Обновляем…" : "↻ Обновить"}</button></div></div>
       <div className="staffStats"><button className={filter === "new" ? "active" : ""} onClick={() => setFilter("new")}><span>Новые</span><b>{counts.new}</b></button><button className={filter === "confirmed" ? "active" : ""} onClick={() => setFilter("confirmed")}><span>Подтверждены</span><b>{counts.confirmed}</b></button><button className={filter === "completed" ? "active" : ""} onClick={() => setFilter("completed")}><span>Выполнены</span><b>{counts.completed}</b></button><button className={filter === "all" ? "active" : ""} onClick={() => setFilter("all")}><span>Все</span><b>{counts.all}</b></button></div>
@@ -478,12 +486,12 @@ export default function StaffPage() {
     {teamOpen && staffRole === "owner" && <div className="rescheduleOverlay" role="dialog" aria-modal="true" aria-labelledby="team-title"><section className="rescheduleCard teamCard">
       <div className="walkInHead"><div><small>ТОЛЬКО ДЛЯ ВЛАДЕЛЬЦА</small><h2 id="team-title">Сотрудники</h2><p>Одобряй новые аккаунты и временно отключай доступ работникам.</p></div><button type="button" onClick={() => setTeamOpen(false)} aria-label="Закрыть">×</button></div>
       <div className="teamSection"><div className="teamSectionHead"><h3>Заявки на доступ</h3><b>{pendingRequests.length}</b></div>{pendingRequests.length === 0 ? <p className="teamEmpty">Новых заявок пока нет.</p> : pendingRequests.map(request => <article className="teamRow requestRow" key={request.user_id}><div><strong>{request.display_name}</strong><span>{request.email}</span><small>{new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(request.created_at))}</small></div><div><button className="approveWorker" onClick={() => approveAccess(request)}>✓ Одобрить</button><button className="rejectWorker" onClick={() => rejectAccess(request)}>Отклонить</button></div></article>)}</div>
-      <div className="teamSection"><div className="teamSectionHead"><h3>Команда</h3><b>{teamMembers.length}</b></div>{teamMembers.map(member => <article className="teamRow" key={member.id}><div><strong>{member.display_name}{member.role === "owner" && <em>Владелец</em>}</strong><span>{member.email}</span><small>{member.active ? "Доступ активен" : "Доступ отключён"}</small></div>{member.role === "worker" && <button className={member.active ? "disableWorker" : "enableWorker"} onClick={() => toggleWorker(member)}>{member.active ? "Отключить" : "Включить доступ"}</button>}</article>)}</div>
+      <div className="teamSection"><div className="teamSectionHead"><h3>Команда</h3><b>{teamMembers.length}</b></div>{teamMembers.map(member => <article className="teamRow" key={member.id}><div><strong>{member.display_name}<em>{member.role === "owner" ? "Владелец" : "Менеджер"}</em></strong><span>{member.email}</span><small>{member.active ? "Доступ активен" : "Доступ отключён"}</small></div>{member.role === "manager" && <button className={member.active ? "disableWorker" : "enableWorker"} onClick={() => toggleWorker(member)}>{member.active ? "Отключить" : "Включить доступ"}</button>}</article>)}</div>
       {teamMessage && <p className="walkInMessage">{teamMessage}</p>}
     </section></div>}
     {settingsOpen && staffRole === "owner" && <div className="rescheduleOverlay" role="dialog" aria-modal="true" aria-labelledby="settings-title"><form className="rescheduleCard settingsCard" onSubmit={saveSettings}>
       <div className="walkInHead"><div><small>ТОЛЬКО ДЛЯ ВЛАДЕЛЬЦА</small><h2 id="settings-title">Настройки сайта</h2><p>После сохранения данные сразу обновятся на сайте клиентов.</p></div><button type="button" onClick={() => setSettingsOpen(false)} aria-label="Закрыть">×</button></div>
-      <div className="settingsGrid"><label>Телефон<input name="phone" type="tel" minLength={5} maxLength={30} defaultValue={siteSettings.phone} required /></label><label>Адрес<input name="address" minLength={3} maxLength={160} defaultValue={siteSettings.address} required /></label><label>График работы<input name="hours" minLength={3} maxLength={80} defaultValue={siteSettings.hours} required /></label><label>Ссылка Telegram<input name="telegram_url" type="url" minLength={8} maxLength={200} defaultValue={siteSettings.telegram_url} required /></label></div>
+      <div className="settingsGrid"><label>Телефон<input name="phone" type="tel" minLength={5} maxLength={30} defaultValue={siteSettings.phone} required /></label><label>Адрес<input name="address" minLength={3} maxLength={160} defaultValue={siteSettings.address} required /></label><label>График работы<input name="hours" minLength={3} maxLength={80} defaultValue={siteSettings.hours} required /></label><label>Google Maps<input name="google_maps_url" type="url" minLength={8} maxLength={500} defaultValue={siteSettings.google_maps_url} required /></label><label>Telegram<input name="telegram_url" type="url" minLength={8} maxLength={300} defaultValue={siteSettings.telegram_url} required /></label><label>Instagram<input name="instagram_url" type="url" minLength={8} maxLength={300} defaultValue={siteSettings.instagram_url} required /></label><label>WhatsApp<input name="whatsapp_url" type="url" minLength={8} maxLength={300} defaultValue={siteSettings.whatsapp_url} required /></label><label>TikTok<input name="tiktok_url" type="url" minLength={8} maxLength={300} defaultValue={siteSettings.tiktok_url} required /></label></div>
       <div className="serviceSettings"><small>УСЛУГИ И ЦЕНЫ ПО ТИПУ МАШИНЫ</small>{siteSettings.services.map((item, index) => <fieldset key={item.id}><legend>0{index + 1}</legend><label>Название<input name={`${item.id}_name`} minLength={1} maxLength={50} defaultValue={item.name} required /></label><label>Описание<input name={`${item.id}_note`} minLength={1} maxLength={120} defaultValue={item.note} required /></label><label>Седан<input name={`${item.id}_price_sedan`} minLength={1} maxLength={40} defaultValue={item.prices.sedan} required /></label><label>Кроссовер<input name={`${item.id}_price_crossover`} minLength={1} maxLength={40} defaultValue={item.prices.crossover} required /></label><label>Бус<input name={`${item.id}_price_van`} minLength={1} maxLength={40} defaultValue={item.prices.van} required /></label><label>Длительность<input name={`${item.id}_time`} minLength={1} maxLength={40} defaultValue={item.time} required /></label></fieldset>)}</div>
       {settingsMessage && <p className="walkInMessage">{settingsMessage}</p>}
       <button className="saveWalkIn" disabled={settingsSaving}>{settingsSaving ? "Сохраняем…" : "Сохранить и обновить сайт →"}</button>
