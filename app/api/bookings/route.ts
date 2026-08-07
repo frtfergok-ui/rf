@@ -2,6 +2,7 @@ import { env } from "cloudflare:workers";
 
 const allowedServices = new Set(["express", "complex", "detailing"]);
 const allowedVehicleTypes = new Set(["sedan", "crossover", "van"]);
+const allowedTimes = new Set(["10:00", "11:30", "13:00", "14:30", "16:00", "17:30", "19:00", "20:30"]);
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 
 function getSupabaseConfig() {
@@ -55,6 +56,7 @@ export async function POST(request: Request) {
 
     if (!allowedServices.has(service)) return Response.json({ error: "Выберите услугу" }, { status: 400 });
     if (!allowedVehicleTypes.has(vehicleType)) return Response.json({ error: "Выберите тип автомобиля" }, { status: 400 });
+    if (!datePattern.test(date) || !allowedTimes.has(time)) return Response.json({ error: "Выберите время в графике работы" }, { status: 400 });
     if (phone.length < 10 || phone.length > 20) return Response.json({ error: "Проверьте номер телефона" }, { status: 400 });
     if (name.length < 2 || name.length > 80 || car.length < 2 || car.length > 120 || licensePlate.length < 2 || licensePlate.length > 20) {
       return Response.json({ error: "Проверьте имя и автомобиль" }, { status: 400 });

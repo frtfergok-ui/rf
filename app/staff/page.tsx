@@ -33,7 +33,7 @@ type TeamMember = { id: string; email: string; display_name: string; role: Staff
 const defaultSiteSettings: SiteSettings = {
   phone: "+7 999 123-45-67",
   address: "ул. Автомобильная, 12",
-  hours: "Ежедневно 08:00–22:00",
+  hours: "Ежедневно 10:00–22:00",
   telegram_url: "https://t.me/",
   services: [
     { id: "express", name: "Экспресс", note: "Кузов · диски · сушка", prices: { sedan: "350 ₽", crossover: "450 ₽", van: "550 ₽" }, time: "25 мин" },
@@ -42,8 +42,8 @@ const defaultSiteSettings: SiteSettings = {
   ],
 };
 const statusNames: Record<BookingStatus, string> = { new: "Новая", confirmed: "Подтверждена", completed: "Выполнена", cancelled: "Отменена" };
-const bookingSlots = ["09:00", "10:30", "12:00", "13:30", "15:00", "16:30", "18:00", "19:30"];
-const vehicleNames: Record<Booking["vehicle_type"], string> = { sedan: "Седан", crossover: "Кроссовер", van: "Бус" };
+const bookingSlots = ["10:00", "11:30", "13:00", "14:30", "16:00", "17:30", "19:00", "20:30"];
+const vehicleNames: Record<Booking["vehicle_type"], string> = { sedan: "Седан", crossover: "Кроссовер", van: "Минивэн" };
 
 function localDate(offset = 0) {
   const value = new Date();

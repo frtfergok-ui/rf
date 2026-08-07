@@ -10,7 +10,7 @@ type SiteSettings = { phone: string; address: string; hours: string; telegramUrl
 const defaultSettings: SiteSettings = {
   phone: "+7 999 123-45-67",
   address: "ул. Автомобильная, 12",
-  hours: "Ежедневно 08:00–22:00",
+  hours: "Ежедневно 10:00–22:00",
   telegramUrl: "https://t.me/",
   services: [
     { id: "express", name: "Экспресс", note: "Кузов · диски · сушка", prices: { sedan: "350 ₽", crossover: "450 ₽", van: "550 ₽" }, time: "25 мин" },
@@ -21,9 +21,9 @@ const defaultSettings: SiteSettings = {
 
 const serviceVisuals: Record<ServiceConfig["id"], { icon: string; popular: boolean }> = { express: { icon: "↗", popular: false }, complex: { icon: "✦", popular: true }, detailing: { icon: "◇", popular: false } };
 const vehicleLabels: Record<Locale, Record<VehicleType, string>> = {
-  ru: { sedan: "Седан", crossover: "Кроссовер", van: "Бус" },
-  ro: { sedan: "Sedan", crossover: "Crossover", van: "Microbuz" },
-  en: { sedan: "Sedan", crossover: "Crossover", van: "Van" },
+  ru: { sedan: "Седан", crossover: "Кроссовер", van: "Минивэн" },
+  ro: { sedan: "Sedan", crossover: "Crossover", van: "Minivan" },
+  en: { sedan: "Sedan", crossover: "Crossover", van: "Minivan" },
 };
 const serviceTranslations: Record<Exclude<Locale, "ru">, Record<ServiceConfig["id"], { name: string; note: string; time: string }>> = {
   ro: { express: { name: "Express", note: "Caroserie · jante · uscare", time: "25 min" }, complex: { name: "Complex", note: "Caroserie · salon · geamuri", time: "55 min" }, detailing: { name: "Detailing", note: "Curățare profundă și protecție", time: "2–3 ore" } },
@@ -35,7 +35,7 @@ const copy = {
   en: { services: "Services", booking: "Booking", contacts: "Contacts", eyebrow: "A new generation car wash", hero: <>CLEANLINESS<br />YOU CAN <em>SEE.</em></>, heroText: "Gentle washing, professional products and attention to every detail. We take care of your car while you relax.", book: "Book online", schedule: "Opening hours", serviceKicker: "01 / SERVICES", serviceTitle: <>Choose your<br />level of clean</>, serviceText: <>Honest prices with no surprise charges.<br />Everything you need is included.</>, bookingKicker: "02 / ONLINE BOOKING", bookingTitle: <>YOUR CAR.<br /><em>YOUR TIME.</em></>, bookingText: "Choose a convenient slot — we will prepare the bay and welcome you without a queue.", chooseCar: "Vehicle type", chooseService: "What are we washing?", when: "When works for you?", contact: "How can we reach you?", name: "Your name", phone: "+373 ___ ___ ___", car: "Car make and model", plate: "License plate, e.g. ABC 123", submit: "Confirm booking →", loading: "Creating booking…", checking: "Checking time…", occupied: "busy", noSlots: "This day is fully booked — choose another date.", success: "Booking created!", again: "Create another booking", address: "ADDRESS", reach: "CONTACT", slogan: "Cleanliness without compromise." },
 };
 
-const slots = ["09:00", "10:30", "12:00", "13:30", "15:00", "16:30", "18:00", "19:30"];
+const slots = ["10:00", "11:30", "13:00", "14:30", "16:00", "17:30", "19:00", "20:30"];
 
 function nextDates(locale: Locale) {
   const formatter = new Intl.DateTimeFormat(locale === "ru" ? "ru-RU" : locale === "ro" ? "ro-RO" : "en-US", { weekday: "short" });
@@ -60,7 +60,7 @@ export default function Home() {
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [message, setMessage] = useState("");
   const text = copy[locale];
-  const displayedHours = settings.hours === defaultSettings.hours ? ({ ru: settings.hours, ro: "Zilnic 08:00–22:00", en: "Daily 08:00–22:00" } as const)[locale] : settings.hours;
+  const displayedHours = settings.hours === defaultSettings.hours ? ({ ru: settings.hours, ro: "Zilnic 10:00–22:00", en: "Daily 10:00–22:00" } as const)[locale] : settings.hours;
   const displayedAddress = settings.address === defaultSettings.address ? ({ ru: settings.address, ro: "str. Automobilului, 12", en: "12 Automobile Street" } as const)[locale] : settings.address;
   const services = useMemo(() => settings.services.map(item => ({
     ...item,
@@ -159,7 +159,7 @@ export default function Home() {
           <div className="bookingIntro"><span>{text.bookingKicker}</span><h2>{text.bookingTitle}</h2><p>{text.bookingText}</p><div className="steps"><b>1</b><i /><b>2</b><i /><b>3</b></div></div>
           <form className="bookingCard" onSubmit={submitBooking}>
             {status === "success" ? <div className="success"><div>✓</div><h3>{text.success}</h3><p>{date} · {time} · {vehicleLabels[locale][vehicleType]}</p><button type="button" onClick={() => setStatus("idle")}>{text.again}</button></div> : <>
-              <div className="formStep"><span>01</span><div><h3>{text.chooseCar}</h3><div className="vehicleRow">{(["sedan", "crossover", "van"] as VehicleType[]).map(item => <button type="button" className={vehicleType === item ? "active" : ""} onClick={() => setVehicleType(item)} key={item}><span className={`vehicleIcon ${item}`} aria-hidden="true"><i /></span><small>{vehicleLabels[locale][item]}</small></button>)}</div><h3 className="serviceQuestion">{text.chooseService}</h3><div className="choiceRow">{services.map(item => <button type="button" className={service === item.id ? "active" : ""} onClick={() => setService(item.id)} key={item.id}>{item.name}<small>{item.price}</small></button>)}</div></div></div>
+              <div className="formStep"><span>01</span><div><h3>{text.chooseCar}</h3><div className="vehicleRow">{(["sedan", "crossover", "van"] as VehicleType[]).map(item => <button type="button" className={vehicleType === item ? "active" : ""} onClick={() => setVehicleType(item)} key={item}><span className="vehicleIcon" aria-hidden="true"><img src={`/vehicle-${item}.png`} alt="" /></span><small>{vehicleLabels[locale][item]}</small></button>)}</div><h3 className="serviceQuestion">{text.chooseService}</h3><div className="choiceRow">{services.map(item => <button type="button" className={service === item.id ? "active" : ""} onClick={() => setService(item.id)} key={item.id}>{item.name}<small>{item.price}</small></button>)}</div></div></div>
               <div className="formStep"><span>02</span><div><h3>{text.when}</h3><div className="dateRow">{dates.map(item => <button type="button" className={date === item.iso ? "active" : ""} onClick={() => setDate(item.iso)} key={item.iso}><small>{item.day}</small>{item.number}</button>)}</div><div className="slotRow">{slots.map(slot => { const occupied = occupiedSlots.includes(slot); return <button type="button" className={time === slot ? "active" : occupied ? "occupied" : ""} onClick={() => setTime(slot)} disabled={occupied || availabilityLoading} key={slot}>{slot}{occupied && <small>{text.occupied}</small>}</button>; })}</div>{!availabilityLoading && !time && <p className="noSlots">{text.noSlots}</p>}</div></div>
               <div className="formStep"><span>03</span><div><h3>{text.contact}</h3><div className="fields"><input name="name" aria-label="Name" placeholder={text.name} required /><input name="phone" aria-label="Phone" type="tel" placeholder={text.phone} required /><input name="car" aria-label="Car" placeholder={text.car} required /><input name="licensePlate" aria-label="License plate" placeholder={text.plate} autoCapitalize="characters" minLength={2} maxLength={20} required /></div><button className="submit" disabled={status === "loading" || availabilityLoading || !time}>{status === "loading" ? text.loading : availabilityLoading ? text.checking : text.submit}</button>{status === "error" && <p className="error">{message}</p>}</div></div>
             </>}
