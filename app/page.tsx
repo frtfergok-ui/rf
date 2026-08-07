@@ -136,8 +136,8 @@ export default function Home() {
           <p>{text.heroText}</p>
           <div className="heroActions"><a className="primary" href="#booking">{text.book} <b>↗</b></a><span>★ 4.9 <small>Google Maps</small></span></div>
         </div>
-        <div className="heroVisual" aria-label="Стилизованный силуэт автомобиля">
-          <div className="glow" /><div className="car"><div className="roof" /><div className="body" /><div className="wheel left" /><div className="wheel right" /></div>
+        <div className="heroVisual" aria-label="Автомобиль MALL AUTO WASH">
+          <div className="heroTag">MALL / AUTO CARE</div><div className="glow" /><img className="heroCar" src="/vehicle-sedan.png" alt="Современный седан" />
           <div className="stat"><strong>12 480</strong><span>{locale === "ru" ? "чистых автомобилей" : locale === "ro" ? "mașini curate" : "clean cars"}</span></div>
           <div className="open"><i /> {text.schedule}<br /><b>{displayedHours}</b></div>
         </div>
