@@ -124,7 +124,7 @@ export default function Home() {
   return (
     <main>
       <nav className="nav shell">
-        <a className="brand" href="#top"><span>M</span> MALL AUTO WASH</a>
+        <a className="brand" href="#top"><img src="/mall-autowash-logo.png" alt="MALL AUTOWASH" /></a>
         <div className="navlinks"><a href="#services">{text.services}</a><a href="#booking">{text.booking}</a><a href="#contacts">{text.contacts}</a></div>
         <div className="navRight"><div className="languageSwitch" aria-label="Language">{(["ro", "ru", "en"] as Locale[]).map(item => <button className={locale === item ? "active" : ""} onClick={() => setLocale(item)} key={item}>{item.toUpperCase()}</button>)}</div><a className="navphone" href={phoneHref}>{settings.phone}</a></div>
       </nav>
@@ -167,7 +167,7 @@ export default function Home() {
         </div>
       </section>
 
-      <footer id="contacts"><div className="shell footerGrid"><div><a className="brand" href="#top"><span>M</span> MALL AUTO WASH</a><p>{text.slogan}</p></div><div><small>{text.address}</small><p>{displayedAddress}<br />{displayedHours}</p></div><div><small>{text.reach}</small><a href={phoneHref}>{settings.phone}</a><a href={settings.telegramUrl} target="_blank" rel="noreferrer">Telegram ↗</a></div></div><div className="shell copyright">© 2026 MALL AUTO WASH</div></footer>
+      <footer id="contacts"><div className="shell footerGrid"><div><a className="brand" href="#top"><img src="/mall-autowash-logo.png" alt="MALL AUTOWASH" /></a><p>{text.slogan}</p></div><div><small>{text.address}</small><p>{displayedAddress}<br />{displayedHours}</p></div><div><small>{text.reach}</small><a href={phoneHref}>{settings.phone}</a><a href={settings.telegramUrl} target="_blank" rel="noreferrer">Telegram ↗</a></div></div><div className="shell copyright">© 2026 MALL AUTO WASH</div></footer>
     </main>
   );
 }
