@@ -44,6 +44,7 @@ export default function StaffPage() {
   const [staffName, setStaffName] = useState<string | null>(null);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [filter, setFilter] = useState<BookingStatus | "all">("new");
+  const [selectedDate, setSelectedDate] = useState("all");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -95,7 +96,18 @@ export default function StaffPage() {
     return () => window.clearInterval(timer);
   }, [session, staffName, loadDashboard]);
 
-  const visible = useMemo(() => filter === "all" ? bookings : bookings.filter(item => item.status === filter), [bookings, filter]);
+  const dashboardDates = useMemo(() => Array.from({ length: 7 }, (_, index) => {
+    const value = new Date();
+    value.setDate(value.getDate() + index);
+    return {
+      iso: value.toISOString().slice(0, 10),
+      label: index === 0 ? "Сегодня" : new Intl.DateTimeFormat("ru-RU", { weekday: "short", day: "numeric" }).format(value).replace(".", ""),
+    };
+  }), []);
+  const visible = useMemo(() => bookings.filter(item =>
+    (filter === "all" || item.status === filter) &&
+    (selectedDate === "all" || item.booking_date === selectedDate)
+  ), [bookings, filter, selectedDate]);
   const counts = useMemo(() => ({
     all: bookings.length,
     new: bookings.filter(item => item.status === "new").length,
@@ -160,6 +172,7 @@ export default function StaffPage() {
     <section className="staffContent">
       <div className="staffTitle"><div><span>ЗАЯВКИ</span><h1>Записи клиентов</h1></div><button onClick={loadDashboard} disabled={loading}>{loading ? "Обновляем…" : "↻ Обновить"}</button></div>
       <div className="staffStats"><button className={filter === "new" ? "active" : ""} onClick={() => setFilter("new")}><span>Новые</span><b>{counts.new}</b></button><button className={filter === "confirmed" ? "active" : ""} onClick={() => setFilter("confirmed")}><span>Подтверждены</span><b>{counts.confirmed}</b></button><button className={filter === "completed" ? "active" : ""} onClick={() => setFilter("completed")}><span>Выполнены</span><b>{counts.completed}</b></button><button className={filter === "all" ? "active" : ""} onClick={() => setFilter("all")}><span>Все</span><b>{counts.all}</b></button></div>
+      <div className="staffDays"><button className={selectedDate === "all" ? "active" : ""} onClick={() => setSelectedDate("all")}>Все дни</button>{dashboardDates.map(item => <button className={selectedDate === item.iso ? "active" : ""} onClick={() => setSelectedDate(item.iso)} key={item.iso}>{item.label}</button>)}</div>
       {error && <div className="staffError">{error}</div>}
       <div className="bookingList">{visible.length === 0 ? <div className="emptyState"><b>✓</b><h2>Здесь пока пусто</h2><p>Новые записи появятся автоматически.</p></div> : visible.map(booking => <article className="bookingItem" key={booking.id}>
         <div className="bookingWhen"><strong>{booking.booking_time.slice(0, 5)}</strong><span>{new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" }).format(new Date(`${booking.booking_date}T12:00:00`))}</span></div>

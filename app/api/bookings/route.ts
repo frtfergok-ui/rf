@@ -1,6 +1,37 @@
 import { env } from "cloudflare:workers";
 
 const allowedServices = new Set(["express", "complex", "detailing"]);
+const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+
+function getSupabaseConfig() {
+  const runtimeEnv = env as unknown as Record<string, string | undefined>;
+  const supabaseUrl = runtimeEnv.SUPABASE_URL || process.env.SUPABASE_URL;
+  const publishableKey = runtimeEnv.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_PUBLISHABLE_KEY;
+  if (!supabaseUrl || !publishableKey) throw new Error("Supabase environment is not configured");
+  return { supabaseUrl, publishableKey };
+}
+
+export async function GET(request: Request) {
+  try {
+    const date = new URL(request.url).searchParams.get("date") ?? "";
+    if (!datePattern.test(date) || Number.isNaN(new Date(`${date}T12:00:00Z`).getTime())) {
+      return Response.json({ error: "Некорректная дата" }, { status: 400 });
+    }
+
+    const { supabaseUrl, publishableKey } = getSupabaseConfig();
+    const query = new URLSearchParams({ select: "booking_time", booking_date: `eq.${date}`, status: "in.(new,confirmed)" });
+    const response = await fetch(`${supabaseUrl}/rest/v1/bookings?${query}`, {
+      headers: { apikey: publishableKey, Authorization: `Bearer ${publishableKey}` },
+      cache: "no-store",
+    });
+    if (!response.ok) throw new Error(`Supabase request failed: ${response.status}`);
+
+    const rows = (await response.json()) as Array<{ booking_time: string }>;
+    return Response.json({ occupied: rows.map((row) => row.booking_time.slice(0, 5)) }, { headers: { "Cache-Control": "no-store" } });
+  } catch {
+    return Response.json({ error: "Не удалось проверить свободное время" }, { status: 500 });
+  }
+}
 
 export async function POST(request: Request) {
   try {
@@ -26,10 +57,7 @@ export async function POST(request: Request) {
       return Response.json({ error: "Проверьте имя и автомобиль" }, { status: 400 });
     }
 
-    const runtimeEnv = env as unknown as Record<string, string | undefined>;
-    const supabaseUrl = runtimeEnv.SUPABASE_URL || process.env.SUPABASE_URL;
-    const publishableKey = runtimeEnv.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_PUBLISHABLE_KEY;
-    if (!supabaseUrl || !publishableKey) throw new Error("Supabase environment is not configured");
+    const { supabaseUrl, publishableKey } = getSupabaseConfig();
 
     const response = await fetch(`${supabaseUrl}/rest/v1/bookings`, {
       method: "POST",
