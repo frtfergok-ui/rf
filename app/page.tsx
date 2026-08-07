@@ -70,6 +70,7 @@ export default function Home() {
     ...serviceVisuals[item.id],
   })), [settings.services, locale, vehicleType]);
   const phoneHref = `tel:${settings.phone.replace(/[^\d+]/g, "")}`;
+  const whatsappHref = `https://wa.me/${settings.phone.replace(/\D/g, "")}`;
 
   useEffect(() => {
     let active = true;
@@ -172,7 +173,7 @@ export default function Home() {
         </div>
       </section>
 
-      <footer id="contacts"><div className="shell footerGrid"><div><a className="brand" href="#top"><img src="/mall-autowash-logo.png" alt="MALL AUTOWASH" /></a><p>{text.slogan}</p></div><div><small>{text.address}</small><p>{displayedAddress}<br />{displayedHours}</p></div><div><small>{text.reach}</small><a href={phoneHref}>{settings.phone}</a><a href={settings.telegramUrl} target="_blank" rel="noreferrer">Telegram ↗</a></div></div><div className="shell copyright">© 2026 MALL AUTO WASH</div></footer>
+      <footer id="contacts"><div className="shell footerGrid"><div><a className="brand" href="#top"><img src="/mall-autowash-logo.png" alt="MALL AUTOWASH" /></a><p>{text.slogan}</p></div><div><small>{text.address}</small><p>{displayedAddress}<br />{displayedHours}</p></div><div><small>{text.reach}</small><a href={phoneHref}>{settings.phone}</a><div className="socialLinks"><a href={settings.telegramUrl} target="_blank" rel="noreferrer">Telegram ↗</a><a href={whatsappHref} target="_blank" rel="noreferrer">WhatsApp ↗</a><a href="https://www.instagram.com/" target="_blank" rel="noreferrer">Instagram ↗</a><a href="https://www.tiktok.com/" target="_blank" rel="noreferrer">TikTok ↗</a></div></div></div><div className="shell copyright">© 2026 MALL AUTO WASH</div></footer>
     </main>
   );
 }
