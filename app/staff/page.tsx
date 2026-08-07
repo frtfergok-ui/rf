@@ -37,7 +37,9 @@ export default function StaffPage() {
   const [session, setSession] = useState<Session | null>(null);
   const [authReady, setAuthReady] = useState(false);
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [authMessage, setAuthMessage] = useState("");
+  const [authLoading, setAuthLoading] = useState(false);
   const [staffName, setStaffName] = useState<string | null>(null);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [filter, setFilter] = useState<BookingStatus | "all">("new");
@@ -103,12 +105,11 @@ export default function StaffPage() {
 
   async function signIn(event: FormEvent) {
     event.preventDefault();
-    setAuthMessage("Отправляем ссылку…");
-    const { error: signInError } = await supabase.auth.signInWithOtp({
-      email,
-      options: { emailRedirectTo: `${window.location.origin}/staff`, shouldCreateUser: true },
-    });
-    setAuthMessage(signInError ? "Не удалось отправить ссылку. Проверь email." : "Ссылка для входа отправлена на email.");
+    setAuthLoading(true);
+    setAuthMessage("");
+    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+    if (signInError) setAuthMessage("Неверный email или пароль.");
+    setAuthLoading(false);
   }
 
   async function changeStatus(id: string, status: BookingStatus) {
@@ -138,9 +139,15 @@ export default function StaffPage() {
 
   if (!session) return <main className="staffApp loginScreen"><section className="loginCard">
     <div className="staffBrand"><b>M</b><span>MALL AUTO WASH<small>Панель сотрудника</small></span></div>
-    <h1>Вход в рабочее приложение</h1><p>Введи рабочий email — пришлём одноразовую ссылку для безопасного входа.</p>
-    <form onSubmit={signIn}><label htmlFor="staff-email">Рабочий email</label><input id="staff-email" type="email" value={email} onChange={event => setEmail(event.target.value)} placeholder="worker@example.com" required /><button>Получить ссылку →</button></form>
-    {authMessage && <div className="authMessage">{authMessage}</div>}
+    <h1>Вход в рабочее приложение</h1><p>Введи рабочий email и пароль. После входа приложение запомнит тебя на этом устройстве.</p>
+    <form onSubmit={signIn}>
+      <label htmlFor="staff-email">Рабочий email</label>
+      <input id="staff-email" type="email" autoComplete="username" value={email} onChange={event => setEmail(event.target.value)} placeholder="worker@example.com" required />
+      <label htmlFor="staff-password">Пароль</label>
+      <input id="staff-password" type="password" autoComplete="current-password" value={password} onChange={event => setPassword(event.target.value)} placeholder="Введите пароль" minLength={6} required />
+      <button disabled={authLoading}>{authLoading ? "Входим…" : "Войти →"}</button>
+    </form>
+    {authMessage && <div className="authMessage errorMessage" role="alert">{authMessage}</div>}
   </section></main>;
 
   if (!staffName && !loading) return <main className="staffApp loginScreen"><section className="loginCard accessCard">
