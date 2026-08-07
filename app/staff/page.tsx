@@ -46,6 +46,10 @@ function confirmationMessage(booking: Booking) {
   return `Здравствуйте, ${booking.customer_name}! Ваша запись в MALL AUTO WASH подтверждена на ${date} в ${booking.booking_time.slice(0, 5)}. Автомобиль: ${booking.car}, госномер ${booking.license_plate}. Услуга: ${serviceNames[booking.service]}. Ждём вас!`;
 }
 
+function readyMessage(booking: Booking) {
+  return `Здравствуйте, ${booking.customer_name}! Ваша машина готова. Автомобиль ${booking.car}, госномер ${booking.license_plate}, находится на парковочном месте на подземной парковке. Можно забирать. MALL AUTO WASH`;
+}
+
 export default function StaffPage() {
   const [session, setSession] = useState<Session | null>(null);
   const [authReady, setAuthReady] = useState(false);
@@ -209,6 +213,21 @@ export default function StaffPage() {
     else window.location.href = url;
   }
 
+  async function completeInWhatsapp(booking: Booking) {
+    const popup = window.open("about:blank", "_blank");
+    const now = new Date().toISOString();
+    const { error: updateError } = await supabase.from("bookings").update({ status: "completed", updated_at: now }).eq("id", booking.id);
+    if (updateError) {
+      popup?.close();
+      setError("Не удалось отметить машину готовой.");
+      return;
+    }
+    setBookings(items => items.map(item => item.id === booking.id ? { ...item, status: "completed" } : item));
+    const url = `https://wa.me/${whatsappPhone(booking.phone)}?text=${encodeURIComponent(readyMessage(booking))}`;
+    if (popup) popup.location.href = url;
+    else window.location.href = url;
+  }
+
   if (!authReady) return <main className="staffApp"><div className="staffLoader">Загрузка…</div></main>;
 
   if (!session) return <main className="staffApp loginScreen"><section className="loginCard">
@@ -247,7 +266,7 @@ export default function StaffPage() {
       <div className="bookingList">{visible.length === 0 ? <div className="emptyState"><b>✓</b><h2>Здесь пока пусто</h2><p>Новые записи появятся автоматически.</p></div> : visible.map(booking => <article className="bookingItem" key={booking.id}>
         <div className="bookingWhen"><strong>{booking.booking_time.slice(0, 5)}</strong><span>{new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" }).format(new Date(`${booking.booking_date}T12:00:00`))}</span></div>
         <div className="bookingClient"><div className="statusLine"><i className={`statusDot ${booking.status}`} /><small>{statusNames[booking.status]}</small>{booking.booking_source === "walk_in" && <small className="walkInBadge">Клиент на месте</small>}</div><h2>{booking.customer_name}</h2><p>{booking.car} · {serviceNames[booking.service]}</p><strong className="licensePlate">{booking.license_plate}</strong>{booking.phone && <a href={`tel:${booking.phone}`}>{booking.phone}</a>}</div>
-        <div className="bookingActions">{booking.status === "new" && booking.booking_source === "online" && booking.phone && <button className="whatsapp" onClick={() => confirmInWhatsapp(booking)}>WhatsApp <b>↗</b></button>}{booking.status === "new" && booking.booking_source === "walk_in" && <button className="done" onClick={() => changeStatus(booking.id, "confirmed")}>✓ Принять в работу</button>}{booking.status === "confirmed" && <button className="done" onClick={() => changeStatus(booking.id, "completed")}>✓ Выполнено</button>}{booking.status !== "cancelled" && booking.status !== "completed" && <button className="cancel" onClick={() => changeStatus(booking.id, "cancelled")}>Отменить</button>}</div>
+        <div className="bookingActions">{booking.status === "new" && booking.booking_source === "online" && booking.phone && <button className="whatsapp" onClick={() => confirmInWhatsapp(booking)}>WhatsApp <b>↗</b></button>}{booking.status === "new" && booking.booking_source === "walk_in" && <button className="done" onClick={() => changeStatus(booking.id, "confirmed")}>✓ Принять в работу</button>}{booking.status === "confirmed" && <button className="ready" onClick={() => completeInWhatsapp(booking)}>Машина готова <b>↗</b></button>}{booking.status !== "cancelled" && booking.status !== "completed" && <button className="cancel" onClick={() => changeStatus(booking.id, "cancelled")}>Отменить</button>}</div>
       </article>)}</div>
     </section>
   </main>;
