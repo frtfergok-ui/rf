@@ -9,6 +9,7 @@ type BookingStatus = "new" | "confirmed" | "completed" | "cancelled";
 type Booking = {
   id: string;
   service: "express" | "complex" | "detailing";
+  vehicle_type: "sedan" | "crossover" | "van";
   booking_date: string;
   booking_time: string;
   customer_name: string;
@@ -23,9 +24,24 @@ type Booking = {
   whatsapp_sent_at: string | null;
 };
 
-const serviceNames = { express: "Экспресс", complex: "Комплекс", detailing: "Детейлинг" };
+type StaffRole = "owner" | "worker";
+type ServiceConfig = { id: Booking["service"]; name: string; note: string; prices: Record<Booking["vehicle_type"], string>; time: string };
+type SiteSettings = { phone: string; address: string; hours: string; telegram_url: string; services: ServiceConfig[] };
+
+const defaultSiteSettings: SiteSettings = {
+  phone: "+7 999 123-45-67",
+  address: "ул. Автомобильная, 12",
+  hours: "Ежедневно 08:00–22:00",
+  telegram_url: "https://t.me/",
+  services: [
+    { id: "express", name: "Экспресс", note: "Кузов · диски · сушка", prices: { sedan: "350 ₽", crossover: "450 ₽", van: "550 ₽" }, time: "25 мин" },
+    { id: "complex", name: "Комплекс", note: "Кузов · салон · стёкла", prices: { sedan: "790 ₽", crossover: "950 ₽", van: "1 150 ₽" }, time: "55 мин" },
+    { id: "detailing", name: "Детейлинг", note: "Глубокая чистка и защита", prices: { sedan: "от 2 900 ₽", crossover: "от 3 500 ₽", van: "от 4 200 ₽" }, time: "2–3 часа" },
+  ],
+};
 const statusNames: Record<BookingStatus, string> = { new: "Новая", confirmed: "Подтверждена", completed: "Выполнена", cancelled: "Отменена" };
 const bookingSlots = ["09:00", "10:30", "12:00", "13:30", "15:00", "16:30", "18:00", "19:30"];
+const vehicleNames: Record<Booking["vehicle_type"], string> = { sedan: "Седан", crossover: "Кроссовер", van: "Бус" };
 
 function localDate(offset = 0) {
   const value = new Date();
@@ -41,9 +57,9 @@ function whatsappPhone(phone: string) {
   return digits.startsWith("0") ? `373${digits.slice(1)}` : digits;
 }
 
-function confirmationMessage(booking: Booking) {
+function confirmationMessage(booking: Booking, serviceName: string) {
   const date = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long" }).format(new Date(`${booking.booking_date}T12:00:00`));
-  return `Здравствуйте, ${booking.customer_name}! Ваша запись в MALL AUTO WASH подтверждена на ${date} в ${booking.booking_time.slice(0, 5)}. Автомобиль: ${booking.car}, госномер ${booking.license_plate}. Услуга: ${serviceNames[booking.service]}. Ждём вас!`;
+  return `Здравствуйте, ${booking.customer_name}! Ваша запись в MALL AUTO WASH подтверждена на ${date} в ${booking.booking_time.slice(0, 5)}. Автомобиль: ${booking.car}, ${vehicleNames[booking.vehicle_type].toLowerCase()}, госномер ${booking.license_plate}. Услуга: ${serviceName}. Ждём вас!`;
 }
 
 function readyMessage(booking: Booking) {
@@ -58,6 +74,11 @@ export default function StaffPage() {
   const [authMessage, setAuthMessage] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
   const [staffName, setStaffName] = useState<string | null>(null);
+  const [staffRole, setStaffRole] = useState<StaffRole | null>(null);
+  const [siteSettings, setSiteSettings] = useState<SiteSettings>(defaultSiteSettings);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  const [settingsMessage, setSettingsMessage] = useState("");
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [filter, setFilter] = useState<BookingStatus | "all">("new");
   const [selectedDate, setSelectedDate] = useState("all");
@@ -78,7 +99,7 @@ export default function StaffPage() {
   const loadDashboard = useCallback(async () => {
     setLoading(true);
     setError("");
-    const { data: staff, error: staffError } = await supabase.from("staff_users").select("display_name").maybeSingle();
+    const { data: staff, error: staffError } = await supabase.from("staff_users").select("display_name,role").maybeSingle();
     if (staffError) {
       setError("Не удалось проверить доступ сотрудника.");
       setLoading(false);
@@ -86,14 +107,18 @@ export default function StaffPage() {
     }
     if (!staff) {
       setStaffName(null);
+      setStaffRole(null);
       setBookings([]);
       setLoading(false);
       return;
     }
     setStaffName(staff.display_name);
+    setStaffRole(staff.role as StaffRole);
+    const { data: settings } = await supabase.from("site_settings").select("phone,address,hours,telegram_url,services").eq("id", 1).maybeSingle();
+    if (settings) setSiteSettings(settings as SiteSettings);
     const { data, error: bookingError } = await supabase
       .from("bookings")
-      .select("id,service,booking_date,booking_time,customer_name,phone,car,license_plate,booking_source,created_by,status,created_at,confirmed_at,whatsapp_sent_at")
+      .select("id,service,vehicle_type,booking_date,booking_time,customer_name,phone,car,license_plate,booking_source,created_by,status,created_at,confirmed_at,whatsapp_sent_at")
       .order("booking_date", { ascending: true })
       .order("booking_time", { ascending: true });
     if (bookingError) setError("Не удалось загрузить записи.");
@@ -131,6 +156,7 @@ export default function StaffPage() {
       label: index === 0 ? "Сегодня" : new Intl.DateTimeFormat("ru-RU", { weekday: "short", day: "numeric" }).format(value).replace(".", ""),
     };
   }), []);
+  const serviceNames = useMemo(() => Object.fromEntries(siteSettings.services.map(item => [item.id, item.name])) as Record<Booking["service"], string>, [siteSettings.services]);
   const visible = useMemo(() => {
     const query = search.trim().toLocaleLowerCase("ru-RU");
     return bookings.filter(item =>
@@ -189,6 +215,39 @@ export default function StaffPage() {
     setAuthLoading(false);
   }
 
+  async function saveSettings(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (staffRole !== "owner") return;
+    const form = new FormData(event.currentTarget);
+    const services = defaultSiteSettings.services.map(item => ({
+      id: item.id,
+      name: String(form.get(`${item.id}_name`) ?? "").trim(),
+      note: String(form.get(`${item.id}_note`) ?? "").trim(),
+      prices: {
+        sedan: String(form.get(`${item.id}_price_sedan`) ?? "").trim(),
+        crossover: String(form.get(`${item.id}_price_crossover`) ?? "").trim(),
+        van: String(form.get(`${item.id}_price_van`) ?? "").trim(),
+      },
+      time: String(form.get(`${item.id}_time`) ?? "").trim(),
+    }));
+    const nextSettings: SiteSettings = {
+      phone: String(form.get("phone") ?? "").trim(),
+      address: String(form.get("address") ?? "").trim(),
+      hours: String(form.get("hours") ?? "").trim(),
+      telegram_url: String(form.get("telegram_url") ?? "").trim(),
+      services,
+    };
+    setSettingsSaving(true);
+    setSettingsMessage("");
+    const { error: updateError } = await supabase.from("site_settings").update({ ...nextSettings, updated_at: new Date().toISOString() }).eq("id", 1);
+    if (updateError) setSettingsMessage("Не удалось сохранить настройки. Проверь все поля.");
+    else {
+      setSiteSettings(nextSettings);
+      setSettingsOpen(false);
+    }
+    setSettingsSaving(false);
+  }
+
   async function changeStatus(id: string, status: BookingStatus) {
     const changes: Record<string, string | null> = { status, updated_at: new Date().toISOString() };
     if (status === "confirmed") changes.confirmed_at = new Date().toISOString();
@@ -211,6 +270,7 @@ export default function StaffPage() {
     setWalkInMessage("");
     const { data, error: insertError } = await supabase.from("bookings").insert({
       service: String(form.get("service")),
+      vehicle_type: String(form.get("vehicleType")),
       booking_date: walkInDate,
       booking_time: walkInTime,
       customer_name: String(form.get("name")).trim(),
@@ -219,7 +279,7 @@ export default function StaffPage() {
       license_plate: String(form.get("licensePlate")).trim().toUpperCase(),
       booking_source: "walk_in",
       created_by: session.user.id,
-    }).select("id,service,booking_date,booking_time,customer_name,phone,car,license_plate,booking_source,created_by,status,created_at,confirmed_at,whatsapp_sent_at").single();
+    }).select("id,service,vehicle_type,booking_date,booking_time,customer_name,phone,car,license_plate,booking_source,created_by,status,created_at,confirmed_at,whatsapp_sent_at").single();
 
     if (insertError) {
       setWalkInMessage(insertError.code === "23505" ? "Это время уже занято — выбери другое." : "Не удалось добавить клиента. Проверь данные.");
@@ -265,7 +325,7 @@ export default function StaffPage() {
       return;
     }
     setBookings(items => items.map(item => item.id === booking.id ? { ...item, status: "confirmed", confirmed_at: now, whatsapp_sent_at: now } : item));
-    const url = `https://wa.me/${whatsappPhone(booking.phone)}?text=${encodeURIComponent(confirmationMessage(booking))}`;
+    const url = `https://wa.me/${whatsappPhone(booking.phone)}?text=${encodeURIComponent(confirmationMessage(booking, serviceNames[booking.service]))}`;
     if (popup) popup.location.href = url;
     else window.location.href = url;
   }
@@ -305,16 +365,16 @@ export default function StaffPage() {
   </section></main>;
 
   return <main className="staffApp">
-    <header className="staffHeader"><div className="staffBrand"><b>M</b><span>MALL AUTO WASH<small>Рабочая панель</small></span></div><div className="staffUser"><span><b>{staffName}</b><small>{session.user.email}</small></span><button onClick={() => supabase.auth.signOut()}>Выйти</button></div></header>
+    <header className="staffHeader"><div className="staffBrand"><b>M</b><span>MALL AUTO WASH<small>{staffRole === "owner" ? "Панель владельца" : "Рабочая панель"}</small></span></div><div className="staffUser"><span><b>{staffName}</b><small>{session.user.email}</small></span><button onClick={() => supabase.auth.signOut()}>Выйти</button></div></header>
     <section className="staffContent">
-      <div className="staffTitle"><div><span>ЗАЯВКИ</span><h1>Записи клиентов</h1></div><div className="staffTitleActions"><button className="addWalkIn" onClick={() => { setWalkInOpen(current => !current); setWalkInMessage(""); }}>+ Клиент на месте</button><button onClick={loadDashboard} disabled={loading}>{loading ? "Обновляем…" : "↻ Обновить"}</button></div></div>
+      <div className="staffTitle"><div><span>ЗАЯВКИ</span><h1>Записи клиентов</h1></div><div className="staffTitleActions">{staffRole === "owner" && <button className="ownerSettingsButton" onClick={() => { setSettingsOpen(true); setSettingsMessage(""); }}>⚙ Настройки сайта</button>}<button className="addWalkIn" onClick={() => { setWalkInOpen(current => !current); setWalkInMessage(""); }}>+ Клиент на месте</button><button onClick={loadDashboard} disabled={loading}>{loading ? "Обновляем…" : "↻ Обновить"}</button></div></div>
       <div className="staffStats"><button className={filter === "new" ? "active" : ""} onClick={() => setFilter("new")}><span>Новые</span><b>{counts.new}</b></button><button className={filter === "confirmed" ? "active" : ""} onClick={() => setFilter("confirmed")}><span>Подтверждены</span><b>{counts.confirmed}</b></button><button className={filter === "completed" ? "active" : ""} onClick={() => setFilter("completed")}><span>Выполнены</span><b>{counts.completed}</b></button><button className={filter === "all" ? "active" : ""} onClick={() => setFilter("all")}><span>Все</span><b>{counts.all}</b></button></div>
-      <section className="staffReport" aria-label="Отчёт по выполненным машинам"><div className="reportHead"><span>ОТЧЁТ</span><h2>Результаты мойки</h2><small>Обновляется автоматически</small></div><div className="reportNumbers"><div><span>Сегодня</span><b>{report.today}</b><small>машин</small></div><div><span>7 дней</span><b>{report.week}</b><small>машин</small></div><div className="reportAccent"><span>Этот месяц</span><b>{report.month}</b><small>машин</small></div><div><span>Онлайн</span><b>{report.online}</b><small>за месяц</small></div><div><span>Без записи</span><b>{report.walkIn}</b><small>за месяц</small></div></div></section>
+      {staffRole === "owner" && <section className="staffReport" aria-label="Отчёт по выполненным машинам"><div className="reportHead"><span>ОТЧЁТ ВЛАДЕЛЬЦА</span><h2>Результаты мойки</h2><small>Работники этот блок не видят</small></div><div className="reportNumbers"><div><span>Сегодня</span><b>{report.today}</b><small>машин</small></div><div><span>7 дней</span><b>{report.week}</b><small>машин</small></div><div className="reportAccent"><span>Этот месяц</span><b>{report.month}</b><small>машин</small></div><div><span>Онлайн</span><b>{report.online}</b><small>за месяц</small></div><div><span>Без записи</span><b>{report.walkIn}</b><small>за месяц</small></div></div></section>}
       <div className="staffSearch"><span>⌕</span><input type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Поиск по имени, телефону, машине или госномеру" aria-label="Поиск заявок" />{search && <button onClick={() => setSearch("")} aria-label="Очистить поиск">×</button>}</div>
       <div className="staffDays"><button className={selectedDate === "all" ? "active" : ""} onClick={() => setSelectedDate("all")}>Все дни</button>{dashboardDates.map(item => <button className={selectedDate === item.iso ? "active" : ""} onClick={() => setSelectedDate(item.iso)} key={item.iso}>{item.label}</button>)}</div>
       {walkInOpen && <form className="walkInCard" onSubmit={createWalkIn}>
         <div className="walkInHead"><div><small>БЕЗ ПРЕДВАРИТЕЛЬНОЙ ЗАПИСИ</small><h2>Добавить клиента на месте</h2></div><button type="button" onClick={() => setWalkInOpen(false)} aria-label="Закрыть">×</button></div>
-        <div className="walkInFields"><label>Услуга<select name="service" defaultValue="complex"><option value="express">Экспресс</option><option value="complex">Комплекс</option><option value="detailing">Детейлинг</option></select></label><label>Дата<input type="date" value={walkInDate} min={localDate()} max={localDate(90)} onChange={event => setWalkInDate(event.target.value)} required /></label></div>
+        <div className="walkInFields walkInThree"><label>Тип машины<select name="vehicleType" defaultValue="sedan"><option value="sedan">Седан</option><option value="crossover">Кроссовер</option><option value="van">Бус</option></select></label><label>Услуга<select name="service" defaultValue="complex">{siteSettings.services.map(item => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label><label>Дата<input type="date" value={walkInDate} min={localDate()} max={localDate(90)} onChange={event => setWalkInDate(event.target.value)} required /></label></div>
         <div className="walkInSlots">{bookingSlots.map(slot => { const occupied = occupiedWalkInSlots.includes(slot); return <button type="button" className={walkInTime === slot ? "active" : ""} disabled={occupied} onClick={() => setWalkInTime(slot)} key={slot}>{slot}{occupied && <small>занято</small>}</button>; })}</div>
         {!walkInTime && <p className="walkInMessage">На этот день свободных окон нет.</p>}
         <div className="walkInFields customer"><label>Имя клиента<input name="name" minLength={2} maxLength={80} placeholder="Например, Иван" required /></label><label>Телефон<input name="phone" type="tel" minLength={10} maxLength={20} placeholder="+373 ___ ___ ___" required /></label><label>Марка и модель<input name="car" minLength={2} maxLength={120} placeholder="BMW X5" required /></label><label>Госномер<input name="licensePlate" minLength={2} maxLength={20} autoCapitalize="characters" placeholder="ABC 123" required /></label></div>
@@ -324,7 +384,7 @@ export default function StaffPage() {
       {error && <div className="staffError">{error}</div>}
       <div className="bookingList">{visible.length === 0 ? <div className="emptyState"><b>{search ? "⌕" : "✓"}</b><h2>{search ? "Ничего не найдено" : "Здесь пока пусто"}</h2><p>{search ? "Проверь имя, телефон или госномер." : "Новые записи появятся автоматически."}</p></div> : visible.map(booking => <article className="bookingItem" key={booking.id}>
         <div className="bookingWhen"><strong>{booking.booking_time.slice(0, 5)}</strong><span>{new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" }).format(new Date(`${booking.booking_date}T12:00:00`))}</span></div>
-        <div className="bookingClient"><div className="statusLine"><i className={`statusDot ${booking.status}`} /><small>{statusNames[booking.status]}</small>{booking.booking_source === "walk_in" && <small className="walkInBadge">Клиент на месте</small>}</div><h2>{booking.customer_name}</h2><p>{booking.car} · {serviceNames[booking.service]}</p><strong className="licensePlate">{booking.license_plate}</strong>{booking.phone && <a href={`tel:${booking.phone}`}>{booking.phone}</a>}</div>
+        <div className="bookingClient"><div className="statusLine"><i className={`statusDot ${booking.status}`} /><small>{statusNames[booking.status]}</small>{booking.booking_source === "walk_in" && <small className="walkInBadge">Клиент на месте</small>}</div><h2>{booking.customer_name}</h2><p>{booking.car} · {vehicleNames[booking.vehicle_type]} · {serviceNames[booking.service]}</p><strong className="licensePlate">{booking.license_plate}</strong>{booking.phone && <a href={`tel:${booking.phone}`}>{booking.phone}</a>}</div>
         <div className="bookingActions">{booking.status === "new" && booking.booking_source === "online" && booking.phone && <button className="whatsapp" onClick={() => confirmInWhatsapp(booking)}>WhatsApp <b>↗</b></button>}{booking.status === "new" && booking.booking_source === "walk_in" && <button className="done" onClick={() => changeStatus(booking.id, "confirmed")}>✓ Принять в работу</button>}{booking.status === "confirmed" && <button className="ready" onClick={() => completeInWhatsapp(booking)}>Машина готова <b>↗</b></button>}{booking.status !== "cancelled" && booking.status !== "completed" && <button className="reschedule" onClick={() => openReschedule(booking)}>Перенести</button>}{booking.status !== "cancelled" && booking.status !== "completed" && <button className="cancel" onClick={() => changeStatus(booking.id, "cancelled")}>Отменить</button>}</div>
       </article>)}</div>
     </section>
@@ -335,6 +395,13 @@ export default function StaffPage() {
       {!rescheduleTime && <p className="walkInMessage">На этот день свободных окон нет.</p>}
       {rescheduleMessage && <p className="walkInMessage">{rescheduleMessage}</p>}
       <button className="saveWalkIn" disabled={rescheduleSaving || !rescheduleTime}>{rescheduleSaving ? "Переносим…" : "Сохранить новое время →"}</button>
+    </form></div>}
+    {settingsOpen && staffRole === "owner" && <div className="rescheduleOverlay" role="dialog" aria-modal="true" aria-labelledby="settings-title"><form className="rescheduleCard settingsCard" onSubmit={saveSettings}>
+      <div className="walkInHead"><div><small>ТОЛЬКО ДЛЯ ВЛАДЕЛЬЦА</small><h2 id="settings-title">Настройки сайта</h2><p>После сохранения данные сразу обновятся на сайте клиентов.</p></div><button type="button" onClick={() => setSettingsOpen(false)} aria-label="Закрыть">×</button></div>
+      <div className="settingsGrid"><label>Телефон<input name="phone" type="tel" minLength={5} maxLength={30} defaultValue={siteSettings.phone} required /></label><label>Адрес<input name="address" minLength={3} maxLength={160} defaultValue={siteSettings.address} required /></label><label>График работы<input name="hours" minLength={3} maxLength={80} defaultValue={siteSettings.hours} required /></label><label>Ссылка Telegram<input name="telegram_url" type="url" minLength={8} maxLength={200} defaultValue={siteSettings.telegram_url} required /></label></div>
+      <div className="serviceSettings"><small>УСЛУГИ И ЦЕНЫ ПО ТИПУ МАШИНЫ</small>{siteSettings.services.map((item, index) => <fieldset key={item.id}><legend>0{index + 1}</legend><label>Название<input name={`${item.id}_name`} minLength={1} maxLength={50} defaultValue={item.name} required /></label><label>Описание<input name={`${item.id}_note`} minLength={1} maxLength={120} defaultValue={item.note} required /></label><label>Седан<input name={`${item.id}_price_sedan`} minLength={1} maxLength={40} defaultValue={item.prices.sedan} required /></label><label>Кроссовер<input name={`${item.id}_price_crossover`} minLength={1} maxLength={40} defaultValue={item.prices.crossover} required /></label><label>Бус<input name={`${item.id}_price_van`} minLength={1} maxLength={40} defaultValue={item.prices.van} required /></label><label>Длительность<input name={`${item.id}_time`} minLength={1} maxLength={40} defaultValue={item.time} required /></label></fieldset>)}</div>
+      {settingsMessage && <p className="walkInMessage">{settingsMessage}</p>}
+      <button className="saveWalkIn" disabled={settingsSaving}>{settingsSaving ? "Сохраняем…" : "Сохранить и обновить сайт →"}</button>
     </form></div>}
   </main>;
 }

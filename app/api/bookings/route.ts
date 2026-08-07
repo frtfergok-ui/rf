@@ -1,6 +1,7 @@
 import { env } from "cloudflare:workers";
 
 const allowedServices = new Set(["express", "complex", "detailing"]);
+const allowedVehicleTypes = new Set(["sedan", "crossover", "van"]);
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 
 function getSupabaseConfig() {
@@ -36,7 +37,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const payload = (await request.json()) as Record<string, unknown>;
-    const fields = ["service", "date", "time", "name", "phone", "car", "licensePlate"] as const;
+    const fields = ["service", "vehicleType", "date", "time", "name", "phone", "car", "licensePlate"] as const;
     for (const field of fields) {
       if (typeof payload[field] !== "string" || !payload[field].trim()) {
         return Response.json({ error: "Заполните все поля" }, { status: 400 });
@@ -44,6 +45,7 @@ export async function POST(request: Request) {
     }
 
     const service = String(payload.service);
+    const vehicleType = String(payload.vehicleType);
     const phone = String(payload.phone).replace(/[^\d+]/g, "");
     const name = String(payload.name).trim();
     const car = String(payload.car).trim();
@@ -52,6 +54,7 @@ export async function POST(request: Request) {
     const time = String(payload.time);
 
     if (!allowedServices.has(service)) return Response.json({ error: "Выберите услугу" }, { status: 400 });
+    if (!allowedVehicleTypes.has(vehicleType)) return Response.json({ error: "Выберите тип автомобиля" }, { status: 400 });
     if (phone.length < 10 || phone.length > 20) return Response.json({ error: "Проверьте номер телефона" }, { status: 400 });
     if (name.length < 2 || name.length > 80 || car.length < 2 || car.length > 120 || licensePlate.length < 2 || licensePlate.length > 20) {
       return Response.json({ error: "Проверьте имя и автомобиль" }, { status: 400 });
@@ -69,6 +72,7 @@ export async function POST(request: Request) {
       },
       body: JSON.stringify({
         service,
+        vehicle_type: vehicleType,
         booking_date: date,
         booking_time: time,
         customer_name: name,
