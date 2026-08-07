@@ -12,7 +12,7 @@ type Booking = {
   booking_date: string;
   booking_time: string;
   customer_name: string;
-  phone: string | null;
+  phone: string;
   car: string;
   license_plate: string;
   booking_source: "online" | "walk_in";
@@ -165,6 +165,10 @@ export default function StaffPage() {
     const formElement = event.currentTarget;
     const form = new FormData(formElement);
     const phone = String(form.get("phone") ?? "").replace(/[^\d+]/g, "");
+    if (phone.length < 10 || phone.length > 20) {
+      setWalkInMessage("Введи правильный номер телефона.");
+      return;
+    }
     setWalkInSaving(true);
     setWalkInMessage("");
     const { data, error: insertError } = await supabase.from("bookings").insert({
@@ -172,7 +176,7 @@ export default function StaffPage() {
       booking_date: walkInDate,
       booking_time: walkInTime,
       customer_name: String(form.get("name")).trim(),
-      phone: phone || null,
+      phone,
       car: String(form.get("car")).trim(),
       license_plate: String(form.get("licensePlate")).trim().toUpperCase(),
       booking_source: "walk_in",
@@ -235,7 +239,7 @@ export default function StaffPage() {
         <div className="walkInFields"><label>Услуга<select name="service" defaultValue="complex"><option value="express">Экспресс</option><option value="complex">Комплекс</option><option value="detailing">Детейлинг</option></select></label><label>Дата<input type="date" value={walkInDate} min={localDate()} max={localDate(90)} onChange={event => setWalkInDate(event.target.value)} required /></label></div>
         <div className="walkInSlots">{bookingSlots.map(slot => { const occupied = occupiedWalkInSlots.includes(slot); return <button type="button" className={walkInTime === slot ? "active" : ""} disabled={occupied} onClick={() => setWalkInTime(slot)} key={slot}>{slot}{occupied && <small>занято</small>}</button>; })}</div>
         {!walkInTime && <p className="walkInMessage">На этот день свободных окон нет.</p>}
-        <div className="walkInFields customer"><label>Имя клиента<input name="name" minLength={2} maxLength={80} placeholder="Например, Иван" required /></label><label>Телефон — необязательно<input name="phone" type="tel" placeholder="+373 ___ ___ ___" /></label><label>Марка и модель<input name="car" minLength={2} maxLength={120} placeholder="BMW X5" required /></label><label>Госномер<input name="licensePlate" minLength={2} maxLength={20} autoCapitalize="characters" placeholder="ABC 123" required /></label></div>
+        <div className="walkInFields customer"><label>Имя клиента<input name="name" minLength={2} maxLength={80} placeholder="Например, Иван" required /></label><label>Телефон<input name="phone" type="tel" minLength={10} maxLength={20} placeholder="+373 ___ ___ ___" required /></label><label>Марка и модель<input name="car" minLength={2} maxLength={120} placeholder="BMW X5" required /></label><label>Госномер<input name="licensePlate" minLength={2} maxLength={20} autoCapitalize="characters" placeholder="ABC 123" required /></label></div>
         {walkInMessage && <p className="walkInMessage">{walkInMessage}</p>}
         <button className="saveWalkIn" disabled={walkInSaving || !walkInTime}>{walkInSaving ? "Добавляем…" : "Занять это время →"}</button>
       </form>}
