@@ -27,6 +27,8 @@ type Booking = {
 type StaffRole = "owner" | "worker";
 type ServiceConfig = { id: Booking["service"]; name: string; note: string; prices: Record<Booking["vehicle_type"], string>; time: string };
 type SiteSettings = { phone: string; address: string; hours: string; telegram_url: string; services: ServiceConfig[] };
+type AccessRequest = { user_id: string; email: string; display_name: string; status: "pending" | "approved" | "rejected"; created_at: string };
+type TeamMember = { id: string; email: string; display_name: string; role: StaffRole; active: boolean; created_at: string };
 
 const defaultSiteSettings: SiteSettings = {
   phone: "+7 999 123-45-67",
@@ -71,10 +73,17 @@ export default function StaffPage() {
   const [authReady, setAuthReady] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const [authMessage, setAuthMessage] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
   const [staffName, setStaffName] = useState<string | null>(null);
   const [staffRole, setStaffRole] = useState<StaffRole | null>(null);
+  const [requestStatus, setRequestStatus] = useState<AccessRequest["status"] | null>(null);
+  const [accessRequests, setAccessRequests] = useState<AccessRequest[]>([]);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [teamOpen, setTeamOpen] = useState(false);
+  const [teamMessage, setTeamMessage] = useState("");
   const [siteSettings, setSiteSettings] = useState<SiteSettings>(defaultSiteSettings);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsSaving, setSettingsSaving] = useState(false);
@@ -99,7 +108,7 @@ export default function StaffPage() {
   const loadDashboard = useCallback(async () => {
     setLoading(true);
     setError("");
-    const { data: staff, error: staffError } = await supabase.from("staff_users").select("display_name,role").maybeSingle();
+    const { data: staff, error: staffError } = await supabase.from("staff_users").select("display_name,role").eq("id", session?.user.id ?? "").maybeSingle();
     if (staffError) {
       setError("Не удалось проверить доступ сотрудника.");
       setLoading(false);
@@ -109,13 +118,24 @@ export default function StaffPage() {
       setStaffName(null);
       setStaffRole(null);
       setBookings([]);
+      const { data: request } = await supabase.from("staff_access_requests").select("status").eq("user_id", session?.user.id ?? "").maybeSingle();
+      setRequestStatus((request?.status as AccessRequest["status"] | undefined) ?? null);
       setLoading(false);
       return;
     }
     setStaffName(staff.display_name);
     setStaffRole(staff.role as StaffRole);
+    setRequestStatus(null);
     const { data: settings } = await supabase.from("site_settings").select("phone,address,hours,telegram_url,services").eq("id", 1).maybeSingle();
     if (settings) setSiteSettings(settings as SiteSettings);
+    if (staff.role === "owner") {
+      const [{ data: requests }, { data: team }] = await Promise.all([
+        supabase.from("staff_access_requests").select("user_id,email,display_name,status,created_at").order("created_at", { ascending: false }),
+        supabase.from("staff_users").select("id,email,display_name,role,active,created_at").order("created_at", { ascending: true }),
+      ]);
+      setAccessRequests((requests ?? []) as AccessRequest[]);
+      setTeamMembers((team ?? []) as TeamMember[]);
+    }
     const { data, error: bookingError } = await supabase
       .from("bookings")
       .select("id,service,vehicle_type,booking_date,booking_time,customer_name,phone,car,license_plate,booking_source,created_by,status,created_at,confirmed_at,whatsapp_sent_at")
@@ -124,7 +144,7 @@ export default function StaffPage() {
     if (bookingError) setError("Не удалось загрузить записи.");
     else setBookings((data ?? []) as Booking[]);
     setLoading(false);
-  }, []);
+  }, [session?.user.id]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -157,6 +177,7 @@ export default function StaffPage() {
     };
   }), []);
   const serviceNames = useMemo(() => Object.fromEntries(siteSettings.services.map(item => [item.id, item.name])) as Record<Booking["service"], string>, [siteSettings.services]);
+  const pendingRequests = useMemo(() => accessRequests.filter(item => item.status === "pending"), [accessRequests]);
   const visible = useMemo(() => {
     const query = search.trim().toLocaleLowerCase("ru-RU");
     return bookings.filter(item =>
@@ -213,6 +234,50 @@ export default function StaffPage() {
     const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
     if (signInError) setAuthMessage("Неверный email или пароль.");
     setAuthLoading(false);
+  }
+
+  async function register(event: FormEvent) {
+    event.preventDefault();
+    setAuthLoading(true);
+    setAuthMessage("");
+    const { data, error: signUpError } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { display_name: displayName.trim() } },
+    });
+    if (signUpError) setAuthMessage(signUpError.message.toLowerCase().includes("already") ? "Этот email уже зарегистрирован. Переключись на вход." : "Не удалось создать аккаунт. Проверь данные.");
+    else if (!data.session) setAuthMessage("Аккаунт создан. Подтверди email по ссылке в письме, затем войди.");
+    else setAuthMessage("Заявка отправлена владельцу.");
+    setAuthLoading(false);
+  }
+
+  async function approveAccess(request: AccessRequest) {
+    if (!session || staffRole !== "owner") return;
+    setTeamMessage("");
+    const { error: insertError } = await supabase.from("staff_users").insert({ id: request.user_id, email: request.email, display_name: request.display_name, role: "worker", active: true });
+    if (insertError && insertError.code !== "23505") {
+      setTeamMessage("Не удалось добавить сотрудника.");
+      return;
+    }
+    const { error: reviewError } = await supabase.from("staff_access_requests").update({ status: "approved", reviewed_at: new Date().toISOString(), reviewed_by: session.user.id }).eq("user_id", request.user_id);
+    if (reviewError) setTeamMessage("Сотрудник добавлен, но статус заявки не обновился.");
+    await loadDashboard();
+  }
+
+  async function rejectAccess(request: AccessRequest) {
+    if (!session || staffRole !== "owner") return;
+    setTeamMessage("");
+    const { error: reviewError } = await supabase.from("staff_access_requests").update({ status: "rejected", reviewed_at: new Date().toISOString(), reviewed_by: session.user.id }).eq("user_id", request.user_id);
+    if (reviewError) setTeamMessage("Не удалось отклонить заявку.");
+    else await loadDashboard();
+  }
+
+  async function toggleWorker(member: TeamMember) {
+    if (staffRole !== "owner" || member.role === "owner") return;
+    setTeamMessage("");
+    const { error: updateError } = await supabase.from("staff_users").update({ active: !member.active }).eq("id", member.id);
+    if (updateError) setTeamMessage("Не удалось изменить доступ сотрудника.");
+    else await loadDashboard();
   }
 
   async function saveSettings(event: FormEvent<HTMLFormElement>) {
@@ -349,25 +414,27 @@ export default function StaffPage() {
 
   if (!session) return <main className="staffApp loginScreen"><section className="loginCard">
     <div className="staffBrand"><b>M</b><span>MALL AUTO WASH<small>Панель сотрудника</small></span></div>
-    <h1>Вход в рабочее приложение</h1><p>Введи рабочий email и пароль. После входа приложение запомнит тебя на этом устройстве.</p>
-    <form onSubmit={signIn}>
+    <h1>{authMode === "login" ? "Вход в рабочее приложение" : "Стать сотрудником"}</h1><p>{authMode === "login" ? "Введи рабочий email и пароль. После входа приложение запомнит тебя на этом устройстве." : "Создай аккаунт. Владелец увидит заявку и откроет доступ к рабочей панели."}</p>
+    <div className="authTabs"><button className={authMode === "login" ? "active" : ""} onClick={() => { setAuthMode("login"); setAuthMessage(""); }}>Вход</button><button className={authMode === "register" ? "active" : ""} onClick={() => { setAuthMode("register"); setAuthMessage(""); }}>Регистрация</button></div>
+    <form onSubmit={authMode === "login" ? signIn : register}>
+      {authMode === "register" && <><label htmlFor="staff-name">Имя сотрудника</label><input id="staff-name" value={displayName} onChange={event => setDisplayName(event.target.value)} placeholder="Например, Андрей" minLength={2} maxLength={80} required /></>}
       <label htmlFor="staff-email">Рабочий email</label>
       <input id="staff-email" type="email" autoComplete="username" value={email} onChange={event => setEmail(event.target.value)} placeholder="worker@example.com" required />
       <label htmlFor="staff-password">Пароль</label>
       <input id="staff-password" type="password" autoComplete="current-password" value={password} onChange={event => setPassword(event.target.value)} placeholder="Введите пароль" minLength={6} required />
-      <button disabled={authLoading}>{authLoading ? "Входим…" : "Войти →"}</button>
+      <button disabled={authLoading}>{authLoading ? "Подождите…" : authMode === "login" ? "Войти →" : "Отправить заявку →"}</button>
     </form>
     {authMessage && <div className="authMessage errorMessage" role="alert">{authMessage}</div>}
   </section></main>;
 
   if (!staffName && !loading) return <main className="staffApp loginScreen"><section className="loginCard accessCard">
-    <div className="accessIcon">!</div><h1>Доступ ожидает подтверждения</h1><p>Аккаунт <b>{session.user.email}</b> создан, но ещё не добавлен в список сотрудников. Передай этот email владельцу.</p><button onClick={() => supabase.auth.signOut()}>Выйти</button>
+    <div className="accessIcon">!</div><h1>{requestStatus === "rejected" ? "Заявка отклонена" : "Доступ ожидает подтверждения"}</h1><p>{requestStatus === "rejected" ? <>Владелец пока не открыл доступ аккаунту <b>{session.user.email}</b>.</> : <>Заявка аккаунта <b>{session.user.email}</b> отправлена владельцу. После одобрения обнови страницу.</>}</p><button onClick={loadDashboard}>↻ Проверить доступ</button><button className="secondaryAccess" onClick={() => supabase.auth.signOut()}>Выйти</button>
   </section></main>;
 
   return <main className="staffApp">
     <header className="staffHeader"><div className="staffBrand"><b>M</b><span>MALL AUTO WASH<small>{staffRole === "owner" ? "Панель владельца" : "Рабочая панель"}</small></span></div><div className="staffUser"><span><b>{staffName}</b><small>{session.user.email}</small></span><button onClick={() => supabase.auth.signOut()}>Выйти</button></div></header>
     <section className="staffContent">
-      <div className="staffTitle"><div><span>ЗАЯВКИ</span><h1>Записи клиентов</h1></div><div className="staffTitleActions">{staffRole === "owner" && <button className="ownerSettingsButton" onClick={() => { setSettingsOpen(true); setSettingsMessage(""); }}>⚙ Настройки сайта</button>}<button className="addWalkIn" onClick={() => { setWalkInOpen(current => !current); setWalkInMessage(""); }}>+ Клиент на месте</button><button onClick={loadDashboard} disabled={loading}>{loading ? "Обновляем…" : "↻ Обновить"}</button></div></div>
+      <div className="staffTitle"><div><span>ЗАЯВКИ</span><h1>Записи клиентов</h1></div><div className="staffTitleActions">{staffRole === "owner" && <><button className="teamButton" onClick={() => { setTeamOpen(true); setTeamMessage(""); }}>👥 Сотрудники{pendingRequests.length > 0 && <b>{pendingRequests.length}</b>}</button><button className="ownerSettingsButton" onClick={() => { setSettingsOpen(true); setSettingsMessage(""); }}>⚙ Настройки сайта</button></>}<button className="addWalkIn" onClick={() => { setWalkInOpen(current => !current); setWalkInMessage(""); }}>+ Клиент на месте</button><button onClick={loadDashboard} disabled={loading}>{loading ? "Обновляем…" : "↻ Обновить"}</button></div></div>
       <div className="staffStats"><button className={filter === "new" ? "active" : ""} onClick={() => setFilter("new")}><span>Новые</span><b>{counts.new}</b></button><button className={filter === "confirmed" ? "active" : ""} onClick={() => setFilter("confirmed")}><span>Подтверждены</span><b>{counts.confirmed}</b></button><button className={filter === "completed" ? "active" : ""} onClick={() => setFilter("completed")}><span>Выполнены</span><b>{counts.completed}</b></button><button className={filter === "all" ? "active" : ""} onClick={() => setFilter("all")}><span>Все</span><b>{counts.all}</b></button></div>
       {staffRole === "owner" && <section className="staffReport" aria-label="Отчёт по выполненным машинам"><div className="reportHead"><span>ОТЧЁТ ВЛАДЕЛЬЦА</span><h2>Результаты мойки</h2><small>Работники этот блок не видят</small></div><div className="reportNumbers"><div><span>Сегодня</span><b>{report.today}</b><small>машин</small></div><div><span>7 дней</span><b>{report.week}</b><small>машин</small></div><div className="reportAccent"><span>Этот месяц</span><b>{report.month}</b><small>машин</small></div><div><span>Онлайн</span><b>{report.online}</b><small>за месяц</small></div><div><span>Без записи</span><b>{report.walkIn}</b><small>за месяц</small></div></div></section>}
       <div className="staffSearch"><span>⌕</span><input type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Поиск по имени, телефону, машине или госномеру" aria-label="Поиск заявок" />{search && <button onClick={() => setSearch("")} aria-label="Очистить поиск">×</button>}</div>
@@ -396,6 +463,12 @@ export default function StaffPage() {
       {rescheduleMessage && <p className="walkInMessage">{rescheduleMessage}</p>}
       <button className="saveWalkIn" disabled={rescheduleSaving || !rescheduleTime}>{rescheduleSaving ? "Переносим…" : "Сохранить новое время →"}</button>
     </form></div>}
+    {teamOpen && staffRole === "owner" && <div className="rescheduleOverlay" role="dialog" aria-modal="true" aria-labelledby="team-title"><section className="rescheduleCard teamCard">
+      <div className="walkInHead"><div><small>ТОЛЬКО ДЛЯ ВЛАДЕЛЬЦА</small><h2 id="team-title">Сотрудники</h2><p>Одобряй новые аккаунты и временно отключай доступ работникам.</p></div><button type="button" onClick={() => setTeamOpen(false)} aria-label="Закрыть">×</button></div>
+      <div className="teamSection"><div className="teamSectionHead"><h3>Заявки на доступ</h3><b>{pendingRequests.length}</b></div>{pendingRequests.length === 0 ? <p className="teamEmpty">Новых заявок пока нет.</p> : pendingRequests.map(request => <article className="teamRow requestRow" key={request.user_id}><div><strong>{request.display_name}</strong><span>{request.email}</span><small>{new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(request.created_at))}</small></div><div><button className="approveWorker" onClick={() => approveAccess(request)}>✓ Одобрить</button><button className="rejectWorker" onClick={() => rejectAccess(request)}>Отклонить</button></div></article>)}</div>
+      <div className="teamSection"><div className="teamSectionHead"><h3>Команда</h3><b>{teamMembers.length}</b></div>{teamMembers.map(member => <article className="teamRow" key={member.id}><div><strong>{member.display_name}{member.role === "owner" && <em>Владелец</em>}</strong><span>{member.email}</span><small>{member.active ? "Доступ активен" : "Доступ отключён"}</small></div>{member.role === "worker" && <button className={member.active ? "disableWorker" : "enableWorker"} onClick={() => toggleWorker(member)}>{member.active ? "Отключить" : "Включить доступ"}</button>}</article>)}</div>
+      {teamMessage && <p className="walkInMessage">{teamMessage}</p>}
+    </section></div>}
     {settingsOpen && staffRole === "owner" && <div className="rescheduleOverlay" role="dialog" aria-modal="true" aria-labelledby="settings-title"><form className="rescheduleCard settingsCard" onSubmit={saveSettings}>
       <div className="walkInHead"><div><small>ТОЛЬКО ДЛЯ ВЛАДЕЛЬЦА</small><h2 id="settings-title">Настройки сайта</h2><p>После сохранения данные сразу обновятся на сайте клиентов.</p></div><button type="button" onClick={() => setSettingsOpen(false)} aria-label="Закрыть">×</button></div>
       <div className="settingsGrid"><label>Телефон<input name="phone" type="tel" minLength={5} maxLength={30} defaultValue={siteSettings.phone} required /></label><label>Адрес<input name="address" minLength={3} maxLength={160} defaultValue={siteSettings.address} required /></label><label>График работы<input name="hours" minLength={3} maxLength={80} defaultValue={siteSettings.hours} required /></label><label>Ссылка Telegram<input name="telegram_url" type="url" minLength={8} maxLength={200} defaultValue={siteSettings.telegram_url} required /></label></div>
