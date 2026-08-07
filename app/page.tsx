@@ -61,6 +61,7 @@ export default function Home() {
   const [message, setMessage] = useState("");
   const text = copy[locale];
   const displayedHours = settings.hours === defaultSettings.hours ? ({ ru: settings.hours, ro: "Zilnic 10:00–22:00", en: "Daily 10:00–22:00" } as const)[locale] : settings.hours;
+  const tickerText = locale === "ru" ? "БЕЗОПАСНАЯ ХИМИЯ ✦ БЕЗ РАЗВОДОВ ✦ ГАРАНТИЯ КАЧЕСТВА ✦ ЗАПИСЬ ЗА 30 СЕКУНД ✦" : locale === "ro" ? "PRODUSE SIGURE ✦ FĂRĂ URME ✦ GARANȚIA CALITĂȚII ✦ PROGRAMARE ÎN 30 DE SECUNDE ✦" : "SAFE PRODUCTS ✦ STREAK-FREE ✦ QUALITY GUARANTEE ✦ BOOK IN 30 SECONDS ✦";
   const displayedAddress = settings.address === defaultSettings.address ? ({ ru: settings.address, ro: "str. Automobilului, 12", en: "12 Automobile Street" } as const)[locale] : settings.address;
   const services = useMemo(() => settings.services.map(item => ({
     ...item,
@@ -143,7 +144,11 @@ export default function Home() {
         </div>
       </section>
 
-      <div className="ticker"><div>{locale === "ru" ? "БЕЗОПАСНАЯ ХИМИЯ ✦ БЕЗ РАЗВОДОВ ✦ ГАРАНТИЯ КАЧЕСТВА ✦ ЗАПИСЬ ЗА 30 СЕКУНД" : locale === "ro" ? "PRODUSE SIGURE ✦ FĂRĂ URME ✦ GARANȚIA CALITĂȚII ✦ PROGRAMARE ÎN 30 DE SECUNDE" : "SAFE PRODUCTS ✦ STREAK-FREE ✦ QUALITY GUARANTEE ✦ BOOK IN 30 SECONDS"}</div></div>
+      <div className="ticker" aria-label={tickerText}>
+        <div className="tickerTrack" aria-hidden="true">
+          <span>{tickerText}</span><span>{tickerText}</span><span>{tickerText}</span><span>{tickerText}</span>
+        </div>
+      </div>
 
       <section className="section shell" id="services">
         <div className="sectionHead"><div><span>{text.serviceKicker}</span><h2>{text.serviceTitle}</h2></div><p>{text.serviceText}</p></div>
