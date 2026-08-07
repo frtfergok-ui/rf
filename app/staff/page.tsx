@@ -146,6 +146,20 @@ export default function StaffPage() {
     completed: bookings.filter(item => item.status === "completed").length,
     cancelled: bookings.filter(item => item.status === "cancelled").length,
   }), [bookings]);
+  const report = useMemo(() => {
+    const today = localDate();
+    const weekStart = localDate(-6);
+    const monthStart = `${today.slice(0, 7)}-01`;
+    const completed = bookings.filter(item => item.status === "completed");
+    const completedMonth = completed.filter(item => item.booking_date >= monthStart && item.booking_date <= today);
+    return {
+      today: completed.filter(item => item.booking_date === today).length,
+      week: completed.filter(item => item.booking_date >= weekStart && item.booking_date <= today).length,
+      month: completedMonth.length,
+      online: completedMonth.filter(item => item.booking_source === "online").length,
+      walkIn: completedMonth.filter(item => item.booking_source === "walk_in").length,
+    };
+  }, [bookings]);
   const occupiedWalkInSlots = useMemo(() => bookings
     .filter(item => item.booking_date === walkInDate && (item.status === "new" || item.status === "confirmed"))
     .map(item => item.booking_time.slice(0, 5)), [bookings, walkInDate]);
@@ -295,6 +309,7 @@ export default function StaffPage() {
     <section className="staffContent">
       <div className="staffTitle"><div><span>ЗАЯВКИ</span><h1>Записи клиентов</h1></div><div className="staffTitleActions"><button className="addWalkIn" onClick={() => { setWalkInOpen(current => !current); setWalkInMessage(""); }}>+ Клиент на месте</button><button onClick={loadDashboard} disabled={loading}>{loading ? "Обновляем…" : "↻ Обновить"}</button></div></div>
       <div className="staffStats"><button className={filter === "new" ? "active" : ""} onClick={() => setFilter("new")}><span>Новые</span><b>{counts.new}</b></button><button className={filter === "confirmed" ? "active" : ""} onClick={() => setFilter("confirmed")}><span>Подтверждены</span><b>{counts.confirmed}</b></button><button className={filter === "completed" ? "active" : ""} onClick={() => setFilter("completed")}><span>Выполнены</span><b>{counts.completed}</b></button><button className={filter === "all" ? "active" : ""} onClick={() => setFilter("all")}><span>Все</span><b>{counts.all}</b></button></div>
+      <section className="staffReport" aria-label="Отчёт по выполненным машинам"><div className="reportHead"><span>ОТЧЁТ</span><h2>Результаты мойки</h2><small>Обновляется автоматически</small></div><div className="reportNumbers"><div><span>Сегодня</span><b>{report.today}</b><small>машин</small></div><div><span>7 дней</span><b>{report.week}</b><small>машин</small></div><div className="reportAccent"><span>Этот месяц</span><b>{report.month}</b><small>машин</small></div><div><span>Онлайн</span><b>{report.online}</b><small>за месяц</small></div><div><span>Без записи</span><b>{report.walkIn}</b><small>за месяц</small></div></div></section>
       <div className="staffSearch"><span>⌕</span><input type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Поиск по имени, телефону, машине или госномеру" aria-label="Поиск заявок" />{search && <button onClick={() => setSearch("")} aria-label="Очистить поиск">×</button>}</div>
       <div className="staffDays"><button className={selectedDate === "all" ? "active" : ""} onClick={() => setSelectedDate("all")}>Все дни</button>{dashboardDates.map(item => <button className={selectedDate === item.iso ? "active" : ""} onClick={() => setSelectedDate(item.iso)} key={item.iso}>{item.label}</button>)}</div>
       {walkInOpen && <form className="walkInCard" onSubmit={createWalkIn}>
