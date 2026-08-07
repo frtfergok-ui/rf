@@ -66,6 +66,11 @@ export default function StaffPage() {
   const [walkInTime, setWalkInTime] = useState(bookingSlots[0]);
   const [walkInSaving, setWalkInSaving] = useState(false);
   const [walkInMessage, setWalkInMessage] = useState("");
+  const [reschedulingId, setReschedulingId] = useState<string | null>(null);
+  const [rescheduleDate, setRescheduleDate] = useState(localDate());
+  const [rescheduleTime, setRescheduleTime] = useState(bookingSlots[0]);
+  const [rescheduleSaving, setRescheduleSaving] = useState(false);
+  const [rescheduleMessage, setRescheduleMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -139,12 +144,22 @@ export default function StaffPage() {
   const occupiedWalkInSlots = useMemo(() => bookings
     .filter(item => item.booking_date === walkInDate && (item.status === "new" || item.status === "confirmed"))
     .map(item => item.booking_time.slice(0, 5)), [bookings, walkInDate]);
+  const reschedulingBooking = useMemo(() => bookings.find(item => item.id === reschedulingId) ?? null, [bookings, reschedulingId]);
+  const occupiedRescheduleSlots = useMemo(() => bookings
+    .filter(item => item.id !== reschedulingId && item.booking_date === rescheduleDate && (item.status === "new" || item.status === "confirmed"))
+    .map(item => item.booking_time.slice(0, 5)), [bookings, rescheduleDate, reschedulingId]);
 
   useEffect(() => {
     if (occupiedWalkInSlots.includes(walkInTime)) {
       setWalkInTime(bookingSlots.find(slot => !occupiedWalkInSlots.includes(slot)) ?? "");
     }
   }, [occupiedWalkInSlots, walkInTime]);
+
+  useEffect(() => {
+    if (occupiedRescheduleSlots.includes(rescheduleTime)) {
+      setRescheduleTime(bookingSlots.find(slot => !occupiedRescheduleSlots.includes(slot)) ?? "");
+    }
+  }, [occupiedRescheduleSlots, rescheduleTime]);
 
   async function signIn(event: FormEvent) {
     event.preventDefault();
@@ -195,6 +210,29 @@ export default function StaffPage() {
       setWalkInOpen(false);
     }
     setWalkInSaving(false);
+  }
+
+  function openReschedule(booking: Booking) {
+    setReschedulingId(booking.id);
+    setRescheduleDate(booking.booking_date);
+    setRescheduleTime(booking.booking_time.slice(0, 5));
+    setRescheduleMessage("");
+  }
+
+  async function saveReschedule(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!reschedulingBooking || !rescheduleTime) return;
+    setRescheduleSaving(true);
+    setRescheduleMessage("");
+    const now = new Date().toISOString();
+    const { error: updateError } = await supabase.from("bookings").update({ booking_date: rescheduleDate, booking_time: rescheduleTime, updated_at: now }).eq("id", reschedulingBooking.id);
+    if (updateError) {
+      setRescheduleMessage(updateError.code === "23505" ? "Это время уже занято — выбери другое." : "Не удалось перенести запись.");
+    } else {
+      setBookings(items => items.map(item => item.id === reschedulingBooking.id ? { ...item, booking_date: rescheduleDate, booking_time: `${rescheduleTime}:00` } : item).sort((a, b) => `${a.booking_date}${a.booking_time}`.localeCompare(`${b.booking_date}${b.booking_time}`)));
+      setReschedulingId(null);
+    }
+    setRescheduleSaving(false);
   }
 
   async function confirmInWhatsapp(booking: Booking) {
@@ -266,8 +304,16 @@ export default function StaffPage() {
       <div className="bookingList">{visible.length === 0 ? <div className="emptyState"><b>✓</b><h2>Здесь пока пусто</h2><p>Новые записи появятся автоматически.</p></div> : visible.map(booking => <article className="bookingItem" key={booking.id}>
         <div className="bookingWhen"><strong>{booking.booking_time.slice(0, 5)}</strong><span>{new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" }).format(new Date(`${booking.booking_date}T12:00:00`))}</span></div>
         <div className="bookingClient"><div className="statusLine"><i className={`statusDot ${booking.status}`} /><small>{statusNames[booking.status]}</small>{booking.booking_source === "walk_in" && <small className="walkInBadge">Клиент на месте</small>}</div><h2>{booking.customer_name}</h2><p>{booking.car} · {serviceNames[booking.service]}</p><strong className="licensePlate">{booking.license_plate}</strong>{booking.phone && <a href={`tel:${booking.phone}`}>{booking.phone}</a>}</div>
-        <div className="bookingActions">{booking.status === "new" && booking.booking_source === "online" && booking.phone && <button className="whatsapp" onClick={() => confirmInWhatsapp(booking)}>WhatsApp <b>↗</b></button>}{booking.status === "new" && booking.booking_source === "walk_in" && <button className="done" onClick={() => changeStatus(booking.id, "confirmed")}>✓ Принять в работу</button>}{booking.status === "confirmed" && <button className="ready" onClick={() => completeInWhatsapp(booking)}>Машина готова <b>↗</b></button>}{booking.status !== "cancelled" && booking.status !== "completed" && <button className="cancel" onClick={() => changeStatus(booking.id, "cancelled")}>Отменить</button>}</div>
+        <div className="bookingActions">{booking.status === "new" && booking.booking_source === "online" && booking.phone && <button className="whatsapp" onClick={() => confirmInWhatsapp(booking)}>WhatsApp <b>↗</b></button>}{booking.status === "new" && booking.booking_source === "walk_in" && <button className="done" onClick={() => changeStatus(booking.id, "confirmed")}>✓ Принять в работу</button>}{booking.status === "confirmed" && <button className="ready" onClick={() => completeInWhatsapp(booking)}>Машина готова <b>↗</b></button>}{booking.status !== "cancelled" && booking.status !== "completed" && <button className="reschedule" onClick={() => openReschedule(booking)}>Перенести</button>}{booking.status !== "cancelled" && booking.status !== "completed" && <button className="cancel" onClick={() => changeStatus(booking.id, "cancelled")}>Отменить</button>}</div>
       </article>)}</div>
     </section>
+    {reschedulingBooking && <div className="rescheduleOverlay" role="dialog" aria-modal="true" aria-labelledby="reschedule-title"><form className="rescheduleCard" onSubmit={saveReschedule}>
+      <div className="walkInHead"><div><small>ИЗМЕНЕНИЕ ЗАПИСИ</small><h2 id="reschedule-title">Перенести {reschedulingBooking.customer_name}</h2><p>{reschedulingBooking.car} · {reschedulingBooking.license_plate}</p></div><button type="button" onClick={() => setReschedulingId(null)} aria-label="Закрыть">×</button></div>
+      <label className="rescheduleDate">Новая дата<input type="date" value={rescheduleDate} min={localDate()} max={localDate(90)} onChange={event => setRescheduleDate(event.target.value)} required /></label>
+      <div className="walkInSlots">{bookingSlots.map(slot => { const occupied = occupiedRescheduleSlots.includes(slot); return <button type="button" className={rescheduleTime === slot ? "active" : ""} disabled={occupied} onClick={() => setRescheduleTime(slot)} key={slot}>{slot}{occupied && <small>занято</small>}</button>; })}</div>
+      {!rescheduleTime && <p className="walkInMessage">На этот день свободных окон нет.</p>}
+      {rescheduleMessage && <p className="walkInMessage">{rescheduleMessage}</p>}
+      <button className="saveWalkIn" disabled={rescheduleSaving || !rescheduleTime}>{rescheduleSaving ? "Переносим…" : "Сохранить новое время →"}</button>
+    </form></div>}
   </main>;
 }
