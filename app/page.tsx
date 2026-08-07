@@ -32,7 +32,7 @@ export default function Home() {
     event.preventDefault();
     setStatus("loading");
     const form = new FormData(event.currentTarget);
-    const payload = { service, date, time, name: form.get("name"), phone: form.get("phone"), car: form.get("car") };
+    const payload = { service, date, time, name: form.get("name"), phone: form.get("phone"), car: form.get("car"), licensePlate: form.get("licensePlate") };
     try {
       const response = await fetch("/api/bookings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       const data = (await response.json()) as { error?: string };
@@ -84,7 +84,7 @@ export default function Home() {
             {status === "success" ? <div className="success"><div>✓</div><h3>Запись создана!</h3><p>Ждём тебя {dates.find(d => d.iso === date)?.number}-го числа в {time}. Подтверждение отправим по телефону.</p><button type="button" onClick={() => setStatus("idle")}>Создать ещё запись</button></div> : <>
               <div className="formStep"><span>01</span><div><h3>Что моем?</h3><div className="choiceRow">{services.map(item => <button type="button" className={service === item.id ? "active" : ""} onClick={() => setService(item.id)} key={item.id}>{item.name}<small>{item.price}</small></button>)}</div></div></div>
               <div className="formStep"><span>02</span><div><h3>Когда удобно?</h3><div className="dateRow">{dates.map(item => <button type="button" className={date === item.iso ? "active" : ""} onClick={() => setDate(item.iso)} key={item.iso}><small>{item.day}</small>{item.number}</button>)}</div><div className="slotRow">{slots.map(slot => <button type="button" className={time === slot ? "active" : ""} onClick={() => setTime(slot)} key={slot}>{slot}</button>)}</div></div></div>
-              <div className="formStep"><span>03</span><div><h3>Как с тобой связаться?</h3><div className="fields"><input name="name" aria-label="Имя" placeholder="Твоё имя" required /><input name="phone" aria-label="Телефон" type="tel" placeholder="+7 (___) ___-__-__" required /><input name="car" aria-label="Автомобиль" placeholder="Марка и модель авто" required /></div><button className="submit" disabled={status === "loading"}>{status === "loading" ? "Создаём запись…" : "Подтвердить запись →"}</button>{status === "error" && <p className="error">{message}</p>}<small className="policy">Нажимая кнопку, ты соглашаешься с обработкой данных</small></div></div>
+              <div className="formStep"><span>03</span><div><h3>Как с тобой связаться?</h3><div className="fields"><input name="name" aria-label="Имя" placeholder="Твоё имя" required /><input name="phone" aria-label="Телефон" type="tel" placeholder="+373 ___ ___ ___" required /><input name="car" aria-label="Автомобиль" placeholder="Марка и модель авто" required /><input name="licensePlate" aria-label="Госномер автомобиля" placeholder="Госномер авто, например ABC 123" autoCapitalize="characters" minLength={2} maxLength={20} required /></div><button className="submit" disabled={status === "loading"}>{status === "loading" ? "Создаём запись…" : "Подтвердить запись →"}</button>{status === "error" && <p className="error">{message}</p>}<small className="policy">Нажимая кнопку, ты соглашаешься с обработкой данных</small></div></div>
             </>}
           </form>
         </div>

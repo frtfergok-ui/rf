@@ -5,7 +5,7 @@ const allowedServices = new Set(["express", "complex", "detailing"]);
 export async function POST(request: Request) {
   try {
     const payload = (await request.json()) as Record<string, unknown>;
-    const fields = ["service", "date", "time", "name", "phone", "car"] as const;
+    const fields = ["service", "date", "time", "name", "phone", "car", "licensePlate"] as const;
     for (const field of fields) {
       if (typeof payload[field] !== "string" || !payload[field].trim()) {
         return Response.json({ error: "Заполните все поля" }, { status: 400 });
@@ -16,12 +16,13 @@ export async function POST(request: Request) {
     const phone = String(payload.phone).replace(/[^\d+]/g, "");
     const name = String(payload.name).trim();
     const car = String(payload.car).trim();
+    const licensePlate = String(payload.licensePlate).trim().toUpperCase();
     const date = String(payload.date);
     const time = String(payload.time);
 
     if (!allowedServices.has(service)) return Response.json({ error: "Выберите услугу" }, { status: 400 });
     if (phone.length < 10 || phone.length > 20) return Response.json({ error: "Проверьте номер телефона" }, { status: 400 });
-    if (name.length < 2 || name.length > 80 || car.length < 2 || car.length > 120) {
+    if (name.length < 2 || name.length > 80 || car.length < 2 || car.length > 120 || licensePlate.length < 2 || licensePlate.length > 20) {
       return Response.json({ error: "Проверьте имя и автомобиль" }, { status: 400 });
     }
 
@@ -45,6 +46,7 @@ export async function POST(request: Request) {
         customer_name: name,
         phone,
         car,
+        license_plate: licensePlate,
       }),
     });
 

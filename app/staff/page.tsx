@@ -14,6 +14,7 @@ type Booking = {
   customer_name: string;
   phone: string;
   car: string;
+  license_plate: string;
   status: BookingStatus;
   created_at: string;
   confirmed_at: string | null;
@@ -30,7 +31,7 @@ function whatsappPhone(phone: string) {
 
 function confirmationMessage(booking: Booking) {
   const date = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long" }).format(new Date(`${booking.booking_date}T12:00:00`));
-  return `Здравствуйте, ${booking.customer_name}! Ваша запись в MALL AUTO WASH подтверждена на ${date} в ${booking.booking_time.slice(0, 5)}. Услуга: ${serviceNames[booking.service]}. Ждём вас!`;
+  return `Здравствуйте, ${booking.customer_name}! Ваша запись в MALL AUTO WASH подтверждена на ${date} в ${booking.booking_time.slice(0, 5)}. Автомобиль: ${booking.car}, госномер ${booking.license_plate}. Услуга: ${serviceNames[booking.service]}. Ждём вас!`;
 }
 
 export default function StaffPage() {
@@ -64,7 +65,7 @@ export default function StaffPage() {
     setStaffName(staff.display_name);
     const { data, error: bookingError } = await supabase
       .from("bookings")
-      .select("id,service,booking_date,booking_time,customer_name,phone,car,status,created_at,confirmed_at,whatsapp_sent_at")
+      .select("id,service,booking_date,booking_time,customer_name,phone,car,license_plate,status,created_at,confirmed_at,whatsapp_sent_at")
       .order("booking_date", { ascending: true })
       .order("booking_time", { ascending: true });
     if (bookingError) setError("Не удалось загрузить записи.");
@@ -162,7 +163,7 @@ export default function StaffPage() {
       {error && <div className="staffError">{error}</div>}
       <div className="bookingList">{visible.length === 0 ? <div className="emptyState"><b>✓</b><h2>Здесь пока пусто</h2><p>Новые записи появятся автоматически.</p></div> : visible.map(booking => <article className="bookingItem" key={booking.id}>
         <div className="bookingWhen"><strong>{booking.booking_time.slice(0, 5)}</strong><span>{new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" }).format(new Date(`${booking.booking_date}T12:00:00`))}</span></div>
-        <div className="bookingClient"><div className="statusLine"><i className={`statusDot ${booking.status}`} /><small>{statusNames[booking.status]}</small></div><h2>{booking.customer_name}</h2><p>{booking.car} · {serviceNames[booking.service]}</p><a href={`tel:${booking.phone}`}>{booking.phone}</a></div>
+        <div className="bookingClient"><div className="statusLine"><i className={`statusDot ${booking.status}`} /><small>{statusNames[booking.status]}</small></div><h2>{booking.customer_name}</h2><p>{booking.car} · {serviceNames[booking.service]}</p><strong className="licensePlate">{booking.license_plate}</strong><a href={`tel:${booking.phone}`}>{booking.phone}</a></div>
         <div className="bookingActions">{booking.status === "new" && <button className="whatsapp" onClick={() => confirmInWhatsapp(booking)}>WhatsApp <b>↗</b></button>}{booking.status === "confirmed" && <button className="done" onClick={() => changeStatus(booking.id, "completed")}>✓ Выполнено</button>}{booking.status !== "cancelled" && booking.status !== "completed" && <button className="cancel" onClick={() => changeStatus(booking.id, "cancelled")}>Отменить</button>}</div>
       </article>)}</div>
     </section>
