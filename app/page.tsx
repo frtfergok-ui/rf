@@ -47,7 +47,7 @@ export default function Home() {
   return (
     <main>
       <nav className="nav shell">
-        <a className="brand" href="#top"><span>W</span> WASH//LAB</a>
+        <a className="brand" href="#top"><span>M</span> MALL AUTO WASH</a>
         <div className="navlinks"><a href="#services">Услуги</a><a href="#booking">Запись</a><a href="#contacts">Контакты</a></div>
         <a className="navphone" href="tel:+79991234567">+7 999 123-45-67</a>
       </nav>
@@ -90,7 +90,7 @@ export default function Home() {
         </div>
       </section>
 
-      <footer id="contacts"><div className="shell footerGrid"><div><a className="brand" href="#top"><span>W</span> WASH//LAB</a><p>Чистота без компромиссов.</p></div><div><small>АДРЕС</small><p>ул. Автомобильная, 12<br />Ежедневно 08:00–22:00</p></div><div><small>СВЯЗАТЬСЯ</small><a href="tel:+79991234567">+7 999 123-45-67</a><a href="https://t.me/">Telegram ↗</a></div></div><div className="shell copyright">© 2026 WASH//LAB <span>Политика конфиденциальности</span></div></footer>
+      <footer id="contacts"><div className="shell footerGrid"><div><a className="brand" href="#top"><span>M</span> MALL AUTO WASH</a><p>Чистота без компромиссов.</p></div><div><small>АДРЕС</small><p>ул. Автомобильная, 12<br />Ежедневно 08:00–22:00</p></div><div><small>СВЯЗАТЬСЯ</small><a href="tel:+79991234567">+7 999 123-45-67</a><a href="https://t.me/">Telegram ↗</a></div></div><div className="shell copyright">© 2026 MALL AUTO WASH <span>Политика конфиденциальности</span></div></footer>
     </main>
   );
 }

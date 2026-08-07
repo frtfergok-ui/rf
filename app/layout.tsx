@@ -1,16 +1,21 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import "./globals.css";
 
-export const metadata: Metadata = (() => {
-  const title = "WASH//LAB — автомойка нового поколения";
+export async function generateMetadata(): Promise<Metadata> {
+  const requestHeaders = await headers();
+  const host = requestHeaders.get("x-forwarded-host") || requestHeaders.get("host") || "localhost:3000";
+  const protocol = requestHeaders.get("x-forwarded-proto") || (host.includes("localhost") ? "http" : "https");
+  const image = `${protocol}://${host}/og.png`;
+  const title = "MALL AUTO WASH — автомойка нового поколения";
   const description = "Бережная мойка автомобиля без очередей. Онлайн-запись за 30 секунд.";
   return {
     title, description,
     icons: { icon: "/favicon.svg", shortcut: "/favicon.svg" },
-    openGraph: { title, description, type: "website" },
-    twitter: { card: "summary", title, description },
+    openGraph: { title, description, images: [{ url: image, width: 1734, height: 907 }], type: "website" },
+    twitter: { card: "summary_large_image", title, description, images: [image] },
   };
-})();
+}
 
 export default function RootLayout({
   children,
