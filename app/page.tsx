@@ -138,7 +138,7 @@ export default function Home() {
         </div>
         <div className="heroVisual" aria-label="Автомобиль MALL AUTO WASH">
           <div className="heroTag">MALL / AUTO CARE</div><div className="glow" /><img className="heroCar" src="/vehicle-sedan.png" alt="Современный седан" />
-          <div className="stat"><strong>12 480</strong><span>{locale === "ru" ? "чистых автомобилей" : locale === "ro" ? "mașini curate" : "clean cars"}</span></div>
+          <div className="stat"><strong>450+</strong><span>{locale === "ru" ? "чистых автомобилей" : locale === "ro" ? "mașini curate" : "clean cars"}</span></div>
           <div className="open"><i /> {text.schedule}<br /><b>{displayedHours}</b></div>
         </div>
       </section>
