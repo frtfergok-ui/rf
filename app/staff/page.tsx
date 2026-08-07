@@ -61,6 +61,7 @@ export default function StaffPage() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [filter, setFilter] = useState<BookingStatus | "all">("new");
   const [selectedDate, setSelectedDate] = useState("all");
+  const [search, setSearch] = useState("");
   const [walkInOpen, setWalkInOpen] = useState(false);
   const [walkInDate, setWalkInDate] = useState(localDate());
   const [walkInTime, setWalkInTime] = useState(bookingSlots[0]);
@@ -130,10 +131,14 @@ export default function StaffPage() {
       label: index === 0 ? "Сегодня" : new Intl.DateTimeFormat("ru-RU", { weekday: "short", day: "numeric" }).format(value).replace(".", ""),
     };
   }), []);
-  const visible = useMemo(() => bookings.filter(item =>
-    (filter === "all" || item.status === filter) &&
-    (selectedDate === "all" || item.booking_date === selectedDate)
-  ), [bookings, filter, selectedDate]);
+  const visible = useMemo(() => {
+    const query = search.trim().toLocaleLowerCase("ru-RU");
+    return bookings.filter(item =>
+      (filter === "all" || item.status === filter) &&
+      (selectedDate === "all" || item.booking_date === selectedDate) &&
+      (!query || `${item.customer_name} ${item.phone} ${item.car} ${item.license_plate}`.toLocaleLowerCase("ru-RU").includes(query))
+    );
+  }, [bookings, filter, selectedDate, search]);
   const counts = useMemo(() => ({
     all: bookings.length,
     new: bookings.filter(item => item.status === "new").length,
@@ -290,6 +295,7 @@ export default function StaffPage() {
     <section className="staffContent">
       <div className="staffTitle"><div><span>ЗАЯВКИ</span><h1>Записи клиентов</h1></div><div className="staffTitleActions"><button className="addWalkIn" onClick={() => { setWalkInOpen(current => !current); setWalkInMessage(""); }}>+ Клиент на месте</button><button onClick={loadDashboard} disabled={loading}>{loading ? "Обновляем…" : "↻ Обновить"}</button></div></div>
       <div className="staffStats"><button className={filter === "new" ? "active" : ""} onClick={() => setFilter("new")}><span>Новые</span><b>{counts.new}</b></button><button className={filter === "confirmed" ? "active" : ""} onClick={() => setFilter("confirmed")}><span>Подтверждены</span><b>{counts.confirmed}</b></button><button className={filter === "completed" ? "active" : ""} onClick={() => setFilter("completed")}><span>Выполнены</span><b>{counts.completed}</b></button><button className={filter === "all" ? "active" : ""} onClick={() => setFilter("all")}><span>Все</span><b>{counts.all}</b></button></div>
+      <div className="staffSearch"><span>⌕</span><input type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Поиск по имени, телефону, машине или госномеру" aria-label="Поиск заявок" />{search && <button onClick={() => setSearch("")} aria-label="Очистить поиск">×</button>}</div>
       <div className="staffDays"><button className={selectedDate === "all" ? "active" : ""} onClick={() => setSelectedDate("all")}>Все дни</button>{dashboardDates.map(item => <button className={selectedDate === item.iso ? "active" : ""} onClick={() => setSelectedDate(item.iso)} key={item.iso}>{item.label}</button>)}</div>
       {walkInOpen && <form className="walkInCard" onSubmit={createWalkIn}>
         <div className="walkInHead"><div><small>БЕЗ ПРЕДВАРИТЕЛЬНОЙ ЗАПИСИ</small><h2>Добавить клиента на месте</h2></div><button type="button" onClick={() => setWalkInOpen(false)} aria-label="Закрыть">×</button></div>
@@ -301,7 +307,7 @@ export default function StaffPage() {
         <button className="saveWalkIn" disabled={walkInSaving || !walkInTime}>{walkInSaving ? "Добавляем…" : "Занять это время →"}</button>
       </form>}
       {error && <div className="staffError">{error}</div>}
-      <div className="bookingList">{visible.length === 0 ? <div className="emptyState"><b>✓</b><h2>Здесь пока пусто</h2><p>Новые записи появятся автоматически.</p></div> : visible.map(booking => <article className="bookingItem" key={booking.id}>
+      <div className="bookingList">{visible.length === 0 ? <div className="emptyState"><b>{search ? "⌕" : "✓"}</b><h2>{search ? "Ничего не найдено" : "Здесь пока пусто"}</h2><p>{search ? "Проверь имя, телефон или госномер." : "Новые записи появятся автоматически."}</p></div> : visible.map(booking => <article className="bookingItem" key={booking.id}>
         <div className="bookingWhen"><strong>{booking.booking_time.slice(0, 5)}</strong><span>{new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" }).format(new Date(`${booking.booking_date}T12:00:00`))}</span></div>
         <div className="bookingClient"><div className="statusLine"><i className={`statusDot ${booking.status}`} /><small>{statusNames[booking.status]}</small>{booking.booking_source === "walk_in" && <small className="walkInBadge">Клиент на месте</small>}</div><h2>{booking.customer_name}</h2><p>{booking.car} · {serviceNames[booking.service]}</p><strong className="licensePlate">{booking.license_plate}</strong>{booking.phone && <a href={`tel:${booking.phone}`}>{booking.phone}</a>}</div>
         <div className="bookingActions">{booking.status === "new" && booking.booking_source === "online" && booking.phone && <button className="whatsapp" onClick={() => confirmInWhatsapp(booking)}>WhatsApp <b>↗</b></button>}{booking.status === "new" && booking.booking_source === "walk_in" && <button className="done" onClick={() => changeStatus(booking.id, "confirmed")}>✓ Принять в работу</button>}{booking.status === "confirmed" && <button className="ready" onClick={() => completeInWhatsapp(booking)}>Машина готова <b>↗</b></button>}{booking.status !== "cancelled" && booking.status !== "completed" && <button className="reschedule" onClick={() => openReschedule(booking)}>Перенести</button>}{booking.status !== "cancelled" && booking.status !== "completed" && <button className="cancel" onClick={() => changeStatus(booking.id, "cancelled")}>Отменить</button>}</div>
