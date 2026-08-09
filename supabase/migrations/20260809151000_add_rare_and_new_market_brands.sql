@@ -1,0 +1,42 @@
+with catalog(brand, model, vehicle_type) as (values
+('Acura','TLX','sedan'),('Acura','RDX','crossover'),('Acura','MDX','crossover'),
+('Aston Martin','Vantage','sedan'),('Aston Martin','DBX','crossover'),
+('BAIC','U5 Plus','sedan'),('BAIC','X35','crossover'),('BAIC','X55','crossover'),
+('Buick','Regal','sedan'),('Buick','Encore','crossover'),('Buick','Envision','crossover'),
+('Changan','Alsvin','sedan'),('Changan','CS35 Plus','crossover'),('Changan','CS55 Plus','crossover'),('Changan','UNI-K','crossover'),
+('Daihatsu','Sirion','sedan'),('Daihatsu','Terios','crossover'),
+('Dongfeng','Shine','sedan'),('Dongfeng','T5 EVO','crossover'),('Dongfeng','Mage','crossover'),
+('Exeed','LX','crossover'),('Exeed','TXL','crossover'),('Exeed','VX','crossover'),
+('Ferrari','Roma','sedan'),('Ferrari','Purosangue','crossover'),
+('GAC','Empow','sedan'),('GAC','GS3','crossover'),('GAC','GS8','crossover'),
+('GMC','Terrain','crossover'),('GMC','Yukon','crossover'),('GMC','Sierra','crossover'),
+('Hongqi','H5','sedan'),('Hongqi','E-HS9','crossover'),
+('Hummer','H2','crossover'),('Hummer','H3','crossover'),
+('JAC','J7','sedan'),('JAC','JS4','crossover'),('JAC','JS6','crossover'),('JAC','T8','crossover'),
+('Jaecoo','J7','crossover'),('Jaecoo','J8','crossover'),
+('Jetour','X70','crossover'),('Jetour','X90 Plus','crossover'),('Jetour','T2','crossover'),
+('KGM','Tivoli','crossover'),('KGM','Korando','crossover'),('KGM','Torres','crossover'),('KGM','Rexton','crossover'),
+('Lamborghini','Huracan','sedan'),('Lamborghini','Urus','crossover'),
+('Leapmotor','T03','sedan'),('Leapmotor','C10','crossover'),
+('Lotus','Emira','sedan'),('Lotus','Eletre','crossover'),
+('Lynk & Co','01','crossover'),('Lynk & Co','02','crossover'),('Lynk & Co','03','sedan'),
+('McLaren','GT','sedan'),('McLaren','Artura','sedan'),
+('NIO','ET5','sedan'),('NIO','ET7','sedan'),('NIO','EL6','crossover'),('NIO','EL8','crossover'),
+('Omoda','C5','crossover'),('Omoda','E5','crossover'),
+('Pontiac','G6','sedan'),('Pontiac','Vibe','crossover'),
+('RAM','1500','crossover'),('RAM','2500','crossover'),
+('Rolls-Royce','Ghost','sedan'),('Rolls-Royce','Cullinan','crossover'),
+('Scion','tC','sedan'),('Scion','xB','crossover'),
+('Tata','Indica','sedan'),('Tata','Nexon','crossover'),
+('Voyah','Passion','sedan'),('Voyah','Free','crossover'),('Voyah','Dream','van'),
+('XPeng','P7','sedan'),('XPeng','G6','crossover'),('XPeng','G9','crossover')
+)
+insert into public.vehicle_models (brand, model, vehicle_type, express_price, complex_price, detailing_price, active, sort_order)
+select brand, model, vehicle_type,
+  case vehicle_type when 'sedan' then 350 when 'crossover' then 450 else 550 end,
+  case vehicle_type when 'sedan' then 790 when 'crossover' then 950 else 1150 end,
+  case vehicle_type when 'sedan' then 2900 when 'crossover' then 3500 else 4200 end,
+  true,
+  1000 + row_number() over (order by brand, model)
+from catalog
+on conflict (brand, model) do nothing;
