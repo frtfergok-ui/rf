@@ -552,6 +552,28 @@ export default function StaffPage() {
     const { error: updateError } = await supabase.from("site_settings").update({ ...nextSettings, updated_at: new Date().toISOString() }).eq("id", 1);
     if (updateError) setSettingsMessage("Не удалось сохранить настройки. Проверь все поля.");
     else {
+      const serviceAmounts = Object.fromEntries(services.map(item => [item.id, item.price_amounts]));
+      const priceUpdates = (["sedan", "crossover", "van"] as const).map(vehicleType => supabase
+        .from("vehicle_models")
+        .update({
+          express_price: serviceAmounts.express?.[vehicleType] ?? 0,
+          complex_price: serviceAmounts.complex?.[vehicleType] ?? 0,
+          detailing_price: serviceAmounts.detailing?.[vehicleType] ?? 0,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("vehicle_type", vehicleType));
+      const priceResults = await Promise.all(priceUpdates);
+      if (priceResults.some(result => result.error)) {
+        setSettingsMessage("Настройки сохранены, но не все цены моделей обновились.");
+        setSettingsSaving(false);
+        return;
+      }
+      setVehicleModels(items => items.map(vehicle => ({
+        ...vehicle,
+        express_price: serviceAmounts.express?.[vehicle.vehicle_type] ?? vehicle.express_price,
+        complex_price: serviceAmounts.complex?.[vehicle.vehicle_type] ?? vehicle.complex_price,
+        detailing_price: serviceAmounts.detailing?.[vehicle.vehicle_type] ?? vehicle.detailing_price,
+      })));
       setSiteSettings(nextSettings);
       setSettingsOpen(false);
     }

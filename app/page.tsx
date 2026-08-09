@@ -79,9 +79,11 @@ export default function Home() {
   const services = useMemo(() => settings.services.map(item => ({
     ...item,
     ...(locale === "ru" ? {} : serviceTranslations[locale][item.id]),
-    price: selectedVehicleId ? `${vehicleModels.find(model => String(model.id) === selectedVehicleId)?.prices[item.id] ?? 0} mdl` : item.prices[vehicleType],
+    price: item.price_amounts?.[vehicleType] != null
+      ? `${item.price_amounts[vehicleType].toLocaleString(locale === "ru" ? "ru-RU" : locale === "ro" ? "ro-RO" : "en-US")} mdl`
+      : item.prices[vehicleType],
     ...serviceVisuals[item.id],
-  })), [settings.services, locale, vehicleType, selectedVehicleId, vehicleModels]);
+  })), [settings.services, locale, vehicleType]);
   const brands = useMemo(() => [...new Set(vehicleModels.map(item => item.brand))], [vehicleModels]);
   const brandModels = useMemo(() => vehicleModels.filter(item => item.brand === selectedBrand), [vehicleModels, selectedBrand]);
   const selectedVehicle = useMemo(() => vehicleModels.find(item => String(item.id) === selectedVehicleId), [vehicleModels, selectedVehicleId]);
