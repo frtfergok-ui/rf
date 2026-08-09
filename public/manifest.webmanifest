@@ -1,0 +1,10 @@
+{
+  "name": "MALL AUTOWASH",
+  "short_name": "MALL WASH",
+  "description": "Запись клиентов и рабочая панель автомойки",
+  "start_url": "/staff",
+  "display": "standalone",
+  "background_color": "#1d2025",
+  "theme_color": "#09aee8",
+  "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}

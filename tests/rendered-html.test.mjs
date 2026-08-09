@@ -47,3 +47,23 @@ test("keeps owner settings separate from the manager workspace", async () => {
   assert.match(migration, /role in \('owner', 'manager'\)/);
   assert.match(migration, /owners can add managers/);
 });
+
+test("ships smart booking, customer self-service, CRM and PWA capabilities", async () => {
+  const [staffPage, bookingApi, managePage, manifest, migration] = await Promise.all([
+    readFile(new URL("../app/staff/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/bookings/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/manage/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../public/manifest.webmanifest", import.meta.url), "utf8"),
+    readFile(new URL("../supabase/migrations/20260808103438_operations_crm_loyalty_schedule.sql", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(staffPage, /CRM КЛИЕНТОВ/);
+  assert.match(staffPage, /Двухфакторный вход/);
+  assert.match(staffPage, /Отменить \+ WhatsApp/);
+  assert.match(staffPage, /Попросить отзыв/);
+  assert.match(bookingApi, /create_booking_secure/);
+  assert.match(managePage, /Перенести запись/);
+  assert.match(manifest, /"display": "standalone"/);
+  assert.match(migration, /enforce_booking_capacity/);
+  assert.match(migration, /owners can delete bookings/);
+});

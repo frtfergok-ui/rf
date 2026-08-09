@@ -12,6 +12,8 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title, description,
     icons: { icon: "/favicon.svg", shortcut: "/favicon.svg" },
+    manifest: "/manifest.webmanifest",
+    appleWebApp: { capable: true, title: "MALL AUTOWASH", statusBarStyle: "black-translucent" },
     openGraph: { title, description, images: [{ url: image, width: 1734, height: 907 }], type: "website" },
     twitter: { card: "summary_large_image", title, description, images: [image] },
   };
@@ -24,7 +26,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ru">
-      <body>{children}</body>
+      <body>{children}<script dangerouslySetInnerHTML={{ __html: `if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}))}` }} /></body>
     </html>
   );
 }

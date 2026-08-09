@@ -4,8 +4,9 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 
 type Locale = "ro" | "ru" | "en";
 type VehicleType = "sedan" | "crossover" | "van";
-type ServiceConfig = { id: "express" | "complex" | "detailing"; name: string; note: string; prices: Record<VehicleType, string>; time: string };
-type SiteSettings = { phone: string; address: string; hours: string; telegramUrl: string; instagramUrl: string; whatsappUrl: string; tiktokUrl: string; googleMapsUrl: string; services: ServiceConfig[] };
+type ServiceConfig = { id: "express" | "complex" | "detailing"; name: string; note: string; prices: Record<VehicleType, string>; price_amounts?: Record<VehicleType, number>; time: string; duration_minutes?: number };
+type SiteSettings = { phone: string; address: string; hours: string; telegramUrl: string; instagramUrl: string; whatsappUrl: string; tiktokUrl: string; googleMapsUrl: string; reviewUrl?: string; openingTime?: string; closingTime?: string; bayCount?: number; services: ServiceConfig[] };
+type AvailabilitySlot = { time: string; availableBays: number };
 
 const defaultSettings: SiteSettings = {
   phone: "+7 999 123-45-67",
@@ -39,7 +40,7 @@ const copy = {
   en: { services: "Services", booking: "Booking", contacts: "Contacts", eyebrow: "A new generation car wash", hero: <>CLEANLINESS<br />YOU CAN <em>SEE.</em></>, heroText: "Gentle washing, professional products and attention to every detail. We take care of your car while you relax.", book: "Book online", schedule: "Opening hours", serviceKicker: "01 / SERVICES", serviceTitle: <>Choose your<br />level of clean</>, serviceText: <>Honest prices with no surprise charges.<br />Everything you need is included.</>, bookingKicker: "02 / ONLINE BOOKING", bookingTitle: <>YOUR CAR.<br /><em>YOUR TIME.</em></>, bookingText: "Choose a convenient slot — we will prepare the bay and welcome you without a queue.", chooseCar: "Vehicle type", chooseService: "What are we washing?", when: "When works for you?", contact: "How can we reach you?", name: "Your name", phone: "+373 ___ ___ ___", car: "Car make and model", plate: "License plate, e.g. ABC 123", submit: "Confirm booking →", loading: "Creating booking…", checking: "Checking time…", occupied: "busy", noSlots: "This day is fully booked — choose another date.", success: "Booking created!", again: "Create another booking", address: "ADDRESS", reach: "CONTACT", slogan: "Cleanliness without compromise." },
 };
 
-const slots = ["10:00", "11:30", "13:00", "14:30", "16:00", "17:30", "19:00", "20:30"];
+const fallbackSlots = ["10:00", "11:30", "13:00", "14:30", "16:00", "17:30", "19:00", "20:30"];
 
 function nextDates(locale: Locale) {
   const formatter = new Intl.DateTimeFormat(locale === "ru" ? "ru-RU" : locale === "ro" ? "ro-RO" : "en-US", { weekday: "short" });
@@ -59,10 +60,11 @@ export default function Home() {
   const [service, setService] = useState("complex");
   const [date, setDate] = useState(dates[0].iso);
   const [time, setTime] = useState("12:00");
-  const [occupiedSlots, setOccupiedSlots] = useState<string[]>([]);
+  const [availabilitySlots, setAvailabilitySlots] = useState<AvailabilitySlot[]>(fallbackSlots.map(slot => ({ time: slot, availableBays: 1 })));
   const [availabilityLoading, setAvailabilityLoading] = useState(true);
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [message, setMessage] = useState("");
+  const [managementToken, setManagementToken] = useState("");
   const text = copy[locale];
   const displayedHours = settings.hours === defaultSettings.hours ? ({ ru: settings.hours, ro: "Zilnic 10:00–22:00", en: "Daily 10:00–22:00" } as const)[locale] : settings.hours;
   const tickerText = locale === "ru" ? "БЕЗОПАСНАЯ ХИМИЯ ✦ БЕЗ РАЗВОДОВ ✦ ГАРАНТИЯ КАЧЕСТВА ✦ ЗАПИСЬ ЗА 30 СЕКУНД ✦" : locale === "ro" ? "PRODUSE SIGURE ✦ FĂRĂ URME ✦ GARANȚIA CALITĂȚII ✦ PROGRAMARE ÎN 30 DE SECUNDE ✦" : "SAFE PRODUCTS ✦ STREAK-FREE ✦ QUALITY GUARANTEE ✦ BOOK IN 30 SECONDS ✦";
@@ -90,24 +92,24 @@ export default function Home() {
   useEffect(() => {
     let active = true;
     setAvailabilityLoading(true);
-    fetch(`/api/bookings?date=${encodeURIComponent(date)}`, { cache: "no-store" })
+    fetch(`/api/bookings?date=${encodeURIComponent(date)}&service=${encodeURIComponent(service)}`, { cache: "no-store" })
       .then(async (response) => {
         if (!response.ok) throw new Error("availability");
-        return response.json() as Promise<{ occupied: string[] }>;
+        return response.json() as Promise<{ slots: AvailabilitySlot[] }>;
       })
-      .then(({ occupied }) => {
+      .then(({ slots }) => {
         if (!active) return;
-        setOccupiedSlots(occupied);
-        setTime((current) => occupied.includes(current) ? (slots.find((slot) => !occupied.includes(slot)) ?? "") : current);
+        setAvailabilitySlots(slots);
+        setTime((current) => slots.some(slot => slot.time === current && slot.availableBays > 0) ? current : (slots.find(slot => slot.availableBays > 0)?.time ?? ""));
       })
       .catch(() => {
-        if (active) setOccupiedSlots([]);
+        if (active) setAvailabilitySlots(fallbackSlots.map(slot => ({ time: slot, availableBays: 1 })));
       })
       .finally(() => {
         if (active) setAvailabilityLoading(false);
       });
     return () => { active = false; };
-  }, [date]);
+  }, [date, service]);
 
   async function submitBooking(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -116,9 +118,10 @@ export default function Home() {
     const payload = { service, vehicleType, date, time, name: form.get("name"), phone: form.get("phone"), car: form.get("car"), licensePlate: form.get("licensePlate") };
     try {
       const response = await fetch("/api/bookings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-      const data = (await response.json()) as { error?: string };
+      const data = (await response.json()) as { error?: string; managementToken?: string };
       if (!response.ok) throw new Error(data.error || "Не удалось создать запись");
-      setOccupiedSlots((current) => current.includes(time) ? current : [...current, time]);
+      setManagementToken(data.managementToken ?? "");
+      setAvailabilitySlots(current => current.map(slot => slot.time === time ? { ...slot, availableBays: Math.max(0, slot.availableBays - 1) } : slot));
       setStatus("success");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Попробуйте ещё раз");
@@ -167,9 +170,9 @@ export default function Home() {
         <div className="shell bookingGrid">
           <div className="bookingIntro"><span>{text.bookingKicker}</span><h2>{text.bookingTitle}</h2><p>{text.bookingText}</p><div className="steps"><b>1</b><i /><b>2</b><i /><b>3</b></div></div>
           <form className="bookingCard" onSubmit={submitBooking}>
-            {status === "success" ? <div className="success"><div>✓</div><h3>{text.success}</h3><p>{date} · {time} · {vehicleLabels[locale][vehicleType]}</p><button type="button" onClick={() => setStatus("idle")}>{text.again}</button></div> : <>
+            {status === "success" ? <div className="success"><div>✓</div><h3>{text.success}</h3><p>{date} · {time} · {vehicleLabels[locale][vehicleType]}</p>{managementToken && <a className="manageBookingLink" href={`/manage?token=${managementToken}`}>{locale === "ru" ? "Перенести или отменить запись" : locale === "ro" ? "Modifică sau anulează programarea" : "Reschedule or cancel booking"} →</a>}<button type="button" onClick={() => { setStatus("idle"); setManagementToken(""); }}>{text.again}</button></div> : <>
               <div className="formStep"><span>01</span><div><h3>{text.chooseCar}</h3><div className="vehicleRow">{(["sedan", "crossover", "van"] as VehicleType[]).map(item => <button type="button" className={vehicleType === item ? "active" : ""} onClick={() => setVehicleType(item)} key={item}><span className="vehicleIcon" aria-hidden="true"><img src={`/vehicle-${item}.png`} alt="" /></span><small>{vehicleLabels[locale][item]}</small></button>)}</div><h3 className="serviceQuestion">{text.chooseService}</h3><div className="choiceRow">{services.map(item => <button type="button" className={service === item.id ? "active" : ""} onClick={() => setService(item.id)} key={item.id}>{item.name}<small>{item.price}</small></button>)}</div></div></div>
-              <div className="formStep"><span>02</span><div><h3>{text.when}</h3><div className="dateRow">{dates.map(item => <button type="button" className={date === item.iso ? "active" : ""} onClick={() => setDate(item.iso)} key={item.iso}><small>{item.day}</small>{item.number}</button>)}</div><div className="slotRow">{slots.map(slot => { const occupied = occupiedSlots.includes(slot); return <button type="button" className={time === slot ? "active" : occupied ? "occupied" : ""} onClick={() => setTime(slot)} disabled={occupied || availabilityLoading} key={slot}>{slot}{occupied && <small>{text.occupied}</small>}</button>; })}</div>{!availabilityLoading && !time && <p className="noSlots">{text.noSlots}</p>}</div></div>
+              <div className="formStep"><span>02</span><div><h3>{text.when}</h3><div className="dateRow">{dates.map(item => <button type="button" className={date === item.iso ? "active" : ""} onClick={() => setDate(item.iso)} key={item.iso}><small>{item.day}</small>{item.number}</button>)}</div><div className="slotRow">{availabilitySlots.map(slot => { const occupied = slot.availableBays <= 0; return <button type="button" className={time === slot.time ? "active" : occupied ? "occupied" : ""} onClick={() => setTime(slot.time)} disabled={occupied || availabilityLoading} key={slot.time}>{slot.time}{occupied ? <small>{text.occupied}</small> : slot.availableBays > 1 ? <small>{slot.availableBays} бокса</small> : null}</button>; })}</div>{!availabilityLoading && !time && <p className="noSlots">{text.noSlots}</p>}</div></div>
               <div className="formStep"><span>03</span><div><h3>{text.contact}</h3><div className="fields"><input name="name" aria-label="Name" placeholder={text.name} required /><input name="phone" aria-label="Phone" type="tel" placeholder={text.phone} required /><input name="car" aria-label="Car" placeholder={text.car} required /><input name="licensePlate" aria-label="License plate" placeholder={text.plate} autoCapitalize="characters" minLength={2} maxLength={20} required /></div><button className="submit" disabled={status === "loading" || availabilityLoading || !time}>{status === "loading" ? text.loading : availabilityLoading ? text.checking : text.submit}</button>{status === "error" && <p className="error">{message}</p>}</div></div>
             </>}
           </form>
