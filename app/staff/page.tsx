@@ -9,7 +9,7 @@ type BookingStatus = "new" | "confirmed" | "completed" | "cancelled";
 type Booking = {
   id: string;
   service: "express" | "complex" | "detailing";
-  vehicle_type: "sedan" | "crossover" | "van";
+  vehicle_type: "sedan" | "crossover" | "suv" | "van";
   booking_date: string;
   booking_time: string;
   customer_name: string;
@@ -37,7 +37,8 @@ type Booking = {
 };
 
 type StaffRole = "owner" | "manager";
-type ServiceConfig = { id: Booking["service"]; name: string; note: string; prices: Record<Booking["vehicle_type"], string>; price_amounts?: Record<Booking["vehicle_type"], number>; time: string; duration_minutes?: number };
+type PricingVehicleType = Exclude<Booking["vehicle_type"], "suv">;
+type ServiceConfig = { id: Booking["service"]; name: string; note: string; prices: Record<PricingVehicleType, string>; price_amounts?: Record<PricingVehicleType, number>; time: string; duration_minutes?: number };
 type SiteSettings = { phone: string; address: string; hours: string; telegram_url: string; instagram_url: string; whatsapp_url: string; tiktok_url: string; google_maps_url: string; review_url: string; opening_time: string; closing_time: string; bay_count: number; slot_interval_minutes: number; services: ServiceConfig[] };
 type AccessRequest = { user_id: string; email: string; display_name: string; status: "pending" | "approved" | "rejected"; created_at: string };
 type TeamMember = { id: string; email: string; display_name: string; role: StaffRole; active: boolean; created_at: string };
@@ -69,7 +70,7 @@ const defaultSiteSettings: SiteSettings = {
 };
 const statusNames: Record<BookingStatus, string> = { new: "Новая", confirmed: "Подтверждена", completed: "Выполнена", cancelled: "Отменена" };
 const bookingSlots = ["10:00", "11:30", "13:00", "14:30", "16:00", "17:30", "19:00", "20:30"];
-const vehicleNames: Record<Booking["vehicle_type"], string> = { sedan: "Седан", crossover: "Кроссовер", van: "Минивэн" };
+const vehicleNames: Record<Booking["vehicle_type"], string> = { sedan: "Седан", crossover: "Кроссовер", suv: "SUV", van: "Минивэн" };
 
 function localDate(offset = 0) {
   const value = new Date();
@@ -553,15 +554,18 @@ export default function StaffPage() {
     if (updateError) setSettingsMessage("Не удалось сохранить настройки. Проверь все поля.");
     else {
       const serviceAmounts = Object.fromEntries(services.map(item => [item.id, item.price_amounts]));
-      const priceUpdates = (["sedan", "crossover", "van"] as const).map(vehicleType => supabase
+      const priceUpdates = (["sedan", "crossover", "suv", "van"] as const).map(vehicleType => {
+        const pricingType: PricingVehicleType = vehicleType === "suv" ? "van" : vehicleType;
+        return supabase
         .from("vehicle_models")
         .update({
-          express_price: serviceAmounts.express?.[vehicleType] ?? 0,
-          complex_price: serviceAmounts.complex?.[vehicleType] ?? 0,
-          detailing_price: serviceAmounts.detailing?.[vehicleType] ?? 0,
+          express_price: serviceAmounts.express?.[pricingType] ?? 0,
+          complex_price: serviceAmounts.complex?.[pricingType] ?? 0,
+          detailing_price: serviceAmounts.detailing?.[pricingType] ?? 0,
           updated_at: new Date().toISOString(),
         })
-        .eq("vehicle_type", vehicleType));
+        .eq("vehicle_type", vehicleType);
+      });
       const priceResults = await Promise.all(priceUpdates);
       if (priceResults.some(result => result.error)) {
         setSettingsMessage("Настройки сохранены, но не все цены моделей обновились.");
@@ -570,9 +574,9 @@ export default function StaffPage() {
       }
       setVehicleModels(items => items.map(vehicle => ({
         ...vehicle,
-        express_price: serviceAmounts.express?.[vehicle.vehicle_type] ?? vehicle.express_price,
-        complex_price: serviceAmounts.complex?.[vehicle.vehicle_type] ?? vehicle.complex_price,
-        detailing_price: serviceAmounts.detailing?.[vehicle.vehicle_type] ?? vehicle.detailing_price,
+        express_price: serviceAmounts.express?.[vehicle.vehicle_type === "suv" ? "van" : vehicle.vehicle_type] ?? vehicle.express_price,
+        complex_price: serviceAmounts.complex?.[vehicle.vehicle_type === "suv" ? "van" : vehicle.vehicle_type] ?? vehicle.complex_price,
+        detailing_price: serviceAmounts.detailing?.[vehicle.vehicle_type === "suv" ? "van" : vehicle.vehicle_type] ?? vehicle.detailing_price,
       })));
       setSiteSettings(nextSettings);
       setSettingsOpen(false);
@@ -591,7 +595,9 @@ export default function StaffPage() {
 
   async function saveVehicleModel(vehicle: VehicleModel) {
     setVehicleMessage("");
-    const { error: updateError } = await supabase.from("vehicle_models").update({ brand: vehicle.brand.trim(), model: vehicle.model.trim(), vehicle_type: vehicle.vehicle_type, express_price: Number(vehicle.express_price), complex_price: Number(vehicle.complex_price), detailing_price: Number(vehicle.detailing_price), active: vehicle.active, sort_order: Number(vehicle.sort_order), updated_at: new Date().toISOString() }).eq("id", vehicle.id);
+    const pricingType: PricingVehicleType = vehicle.vehicle_type === "suv" ? "van" : vehicle.vehicle_type;
+    const prices = Object.fromEntries(siteSettings.services.map(item => [item.id, item.price_amounts?.[pricingType] ?? 0]));
+    const { error: updateError } = await supabase.from("vehicle_models").update({ brand: vehicle.brand.trim(), model: vehicle.model.trim(), vehicle_type: vehicle.vehicle_type, express_price: prices.express, complex_price: prices.complex, detailing_price: prices.detailing, active: vehicle.active, sort_order: Number(vehicle.sort_order), updated_at: new Date().toISOString() }).eq("id", vehicle.id);
     setVehicleMessage(updateError ? "Не удалось сохранить модель." : `${vehicle.brand} ${vehicle.model}: цены сохранены.`);
   }
 
@@ -848,7 +854,7 @@ export default function StaffPage() {
       <section className="daySchedule" aria-label="Расписание выбранного дня"><div className="dayScheduleHead"><div><span>РАСПИСАНИЕ ДНЯ · {siteSettings.bay_count} БОКСА</span><h2>{new Intl.DateTimeFormat("ru-RU", { weekday: "long", day: "numeric", month: "long" }).format(new Date(`${scheduleDate}T12:00:00`))}</h2></div><p><i /> занято <b /> свободно</p></div><div className="dayScheduleGrid">{scheduleSlots.map(slot => { const atSlot = scheduleBookings.filter(item => item.booking_time.slice(0, 5) === slot); return atSlot.length ? <article className={`scheduleSlot ${atSlot[0].status}`} key={slot}><time>{slot}</time>{atSlot.map(booking => <div className="slotBooking" key={booking.id}><strong>{booking.customer_name}</strong><span>Бокс {booking.bay_number} · {booking.car}</span><em>{booking.license_plate}</em></div>)}<small>{atSlot.length}/{siteSettings.bay_count} занято</small></article> : <button className="scheduleSlot free" onClick={() => openWalkInAt(slot)} key={slot}><time>{slot}</time><strong>Свободно</strong><span>+ Добавить клиента</span></button>; })}</div></section>
       {walkInOpen && <form className="walkInCard" onSubmit={createWalkIn}>
         <div className="walkInHead"><div><small>БЕЗ ПРЕДВАРИТЕЛЬНОЙ ЗАПИСИ</small><h2>Добавить клиента на месте</h2></div><button type="button" onClick={() => setWalkInOpen(false)} aria-label="Закрыть">×</button></div>
-        <div className="walkInFields walkInThree"><label>Тип машины<select name="vehicleType" defaultValue="sedan"><option value="sedan">Седан</option><option value="crossover">Кроссовер</option><option value="van">Минивэн</option></select></label><label>Услуга<select value={walkInService} onChange={event => setWalkInService(event.target.value as Booking["service"])}>{siteSettings.services.map(item => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label><label>Дата<input type="date" value={walkInDate} min={localDate()} max={localDate(90)} onChange={event => setWalkInDate(event.target.value)} required /></label></div>
+        <div className="walkInFields walkInThree"><label>Тип машины<select name="vehicleType" defaultValue="sedan"><option value="sedan">Седан</option><option value="crossover">Кроссовер</option><option value="suv">SUV</option><option value="van">Минивэн</option></select></label><label>Услуга<select value={walkInService} onChange={event => setWalkInService(event.target.value as Booking["service"])}>{siteSettings.services.map(item => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label><label>Дата<input type="date" value={walkInDate} min={localDate()} max={localDate(90)} onChange={event => setWalkInDate(event.target.value)} required /></label></div>
         <div className="walkInSlots">{walkInSlots.map(slot => { const occupied = slot.availableBays <= 0; return <button type="button" className={walkInTime === slot.time ? "active" : ""} disabled={occupied} onClick={() => setWalkInTime(slot.time)} key={slot.time}>{slot.time}<small>{occupied ? "занято" : `${slot.availableBays} мест`}</small></button>; })}</div>
         {!walkInTime && <p className="walkInMessage">На этот день свободных окон нет.</p>}
         <div className="walkInFields customer"><label>Имя клиента<input name="name" minLength={2} maxLength={80} placeholder="Например, Иван" required /></label><label>Телефон<input name="phone" type="tel" minLength={10} maxLength={20} placeholder="+373 ___ ___ ___" required /></label><label>Марка и модель<input name="car" minLength={2} maxLength={120} placeholder="BMW X5" required /></label><label>Госномер<input name="licensePlate" minLength={2} maxLength={20} autoCapitalize="characters" placeholder="ABC 123" required /></label></div>
@@ -901,8 +907,8 @@ export default function StaffPage() {
       <div className="vehicleCatalogList">{vehicleModels.map((vehicle, index) => <article className={!vehicle.active ? "inactive" : ""} key={vehicle.id}>
         <input aria-label="Марка" value={vehicle.brand} onChange={event => setVehicleModels(items => items.map((item, itemIndex) => itemIndex === index ? { ...item, brand: event.target.value } : item))} />
         <input aria-label="Модель" value={vehicle.model} onChange={event => setVehicleModels(items => items.map((item, itemIndex) => itemIndex === index ? { ...item, model: event.target.value } : item))} />
-        <select aria-label="Тип кузова" value={vehicle.vehicle_type} onChange={event => setVehicleModels(items => items.map((item, itemIndex) => itemIndex === index ? { ...item, vehicle_type: event.target.value as Booking["vehicle_type"] } : item))}><option value="sedan">Седан</option><option value="crossover">Кроссовер</option><option value="van">Минивэн</option></select>
-        {(["express_price", "complex_price", "detailing_price"] as const).map((field, priceIndex) => <label key={field}><span>{["Экспресс", "Комплекс", "Детейлинг"][priceIndex]}</span><input type="number" min="0" value={vehicle[field]} onChange={event => setVehicleModels(items => items.map((item, itemIndex) => itemIndex === index ? { ...item, [field]: Number(event.target.value) } : item))} /></label>)}
+        <select aria-label="Тип кузова" value={vehicle.vehicle_type} onChange={event => { const vehicleType = event.target.value as Booking["vehicle_type"]; const pricingType: PricingVehicleType = vehicleType === "suv" ? "van" : vehicleType; const amounts = Object.fromEntries(siteSettings.services.map(item => [item.id, item.price_amounts?.[pricingType] ?? 0])); setVehicleModels(items => items.map((item, itemIndex) => itemIndex === index ? { ...item, vehicle_type: vehicleType, express_price: amounts.express, complex_price: amounts.complex, detailing_price: amounts.detailing } : item)); }}><option value="sedan">Седан</option><option value="crossover">Кроссовер</option><option value="suv">SUV</option><option value="van">Минивэн</option></select>
+        {(["express_price", "complex_price", "detailing_price"] as const).map((field, priceIndex) => <label key={field}><span>{["Экспресс", "Комплекс", "Детейлинг"][priceIndex]} · по категории</span><input type="number" min="0" value={vehicle[field]} readOnly /></label>)}
         <label className="vehicleActive"><input type="checkbox" checked={vehicle.active} onChange={event => setVehicleModels(items => items.map((item, itemIndex) => itemIndex === index ? { ...item, active: event.target.checked } : item))} /> На сайте</label>
         <div><button className="vehicleSave" onClick={() => saveVehicleModel(vehicle)}>Сохранить</button><button className="vehicleDelete" onClick={() => deleteVehicleModel(vehicle)}>Удалить</button></div>
       </article>)}</div>

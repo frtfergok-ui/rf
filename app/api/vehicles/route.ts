@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 
-type VehicleRow = { id: number; brand: string; model: string; vehicle_type: "sedan" | "crossover" | "van"; express_price: number; complex_price: number; detailing_price: number };
+type VehicleRow = { id: number; brand: string; model: string; vehicle_type: "sedan" | "crossover" | "suv" | "van"; express_price: number; complex_price: number; detailing_price: number };
 
 function getSupabaseConfig() {
   const runtimeEnv = env as unknown as Record<string, string | undefined>;

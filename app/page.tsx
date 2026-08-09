@@ -3,8 +3,9 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
 type Locale = "ro" | "ru" | "en";
-type VehicleType = "sedan" | "crossover" | "van";
-type ServiceConfig = { id: "express" | "complex" | "detailing"; name: string; note: string; prices: Record<VehicleType, string>; price_amounts?: Record<VehicleType, number>; time: string; duration_minutes?: number };
+type VehicleType = "sedan" | "crossover" | "suv" | "van";
+type PricingVehicleType = Exclude<VehicleType, "suv">;
+type ServiceConfig = { id: "express" | "complex" | "detailing"; name: string; note: string; prices: Record<PricingVehicleType, string>; price_amounts?: Record<PricingVehicleType, number>; time: string; duration_minutes?: number };
 type SiteSettings = { phone: string; address: string; hours: string; telegramUrl: string; instagramUrl: string; whatsappUrl: string; tiktokUrl: string; googleMapsUrl: string; reviewUrl?: string; openingTime?: string; closingTime?: string; bayCount?: number; services: ServiceConfig[] };
 type AvailabilitySlot = { time: string; availableBays: number };
 type VehicleModel = { id: number; brand: string; model: string; vehicleType: VehicleType; prices: Record<ServiceConfig["id"], number> };
@@ -28,9 +29,9 @@ const defaultSettings: SiteSettings = {
 const serviceVisuals: Record<ServiceConfig["id"], { icon: string; popular: boolean }> = { express: { icon: "↗", popular: false }, complex: { icon: "✦", popular: true }, detailing: { icon: "◇", popular: false } };
 const savedBookingKey = "mall-autowash-booking-token";
 const vehicleLabels: Record<Locale, Record<VehicleType, string>> = {
-  ru: { sedan: "Седан", crossover: "Кроссовер", van: "Минивэн" },
-  ro: { sedan: "Sedan", crossover: "Crossover", van: "Minivan" },
-  en: { sedan: "Sedan", crossover: "Crossover", van: "Minivan" },
+  ru: { sedan: "Седан", crossover: "Кроссовер", suv: "SUV", van: "Минивэн" },
+  ro: { sedan: "Sedan", crossover: "Crossover", suv: "SUV", van: "Minivan" },
+  en: { sedan: "Sedan", crossover: "Crossover", suv: "SUV", van: "Minivan" },
 };
 const serviceTranslations: Record<Exclude<Locale, "ru">, Record<ServiceConfig["id"], { name: string; note: string; time: string }>> = {
   ro: { express: { name: "Express", note: "Caroserie · jante · uscare", time: "25 min" }, complex: { name: "Complex", note: "Caroserie · salon · geamuri", time: "55 min" }, detailing: { name: "Detailing", note: "Curățare profundă și protecție", time: "2–3 ore" } },
@@ -76,14 +77,15 @@ export default function Home() {
   const displayedHours = settings.hours === defaultSettings.hours ? ({ ru: settings.hours, ro: "Zilnic 10:00–22:00", en: "Daily 10:00–22:00" } as const)[locale] : settings.hours;
   const tickerText = locale === "ru" ? "БЕЗОПАСНАЯ ХИМИЯ ✦ БЕЗ РАЗВОДОВ ✦ ГАРАНТИЯ КАЧЕСТВА ✦ ЗАПИСЬ ЗА 30 СЕКУНД ✦" : locale === "ro" ? "PRODUSE SIGURE ✦ FĂRĂ URME ✦ GARANȚIA CALITĂȚII ✦ PROGRAMARE ÎN 30 DE SECUNDE ✦" : "SAFE PRODUCTS ✦ STREAK-FREE ✦ QUALITY GUARANTEE ✦ BOOK IN 30 SECONDS ✦";
   const displayedAddress = settings.address === defaultSettings.address ? ({ ru: settings.address, ro: "str. Automobilului, 12", en: "12 Automobile Street" } as const)[locale] : settings.address;
+  const pricingVehicleType: PricingVehicleType = vehicleType === "suv" ? "van" : vehicleType;
   const services = useMemo(() => settings.services.map(item => ({
     ...item,
     ...(locale === "ru" ? {} : serviceTranslations[locale][item.id]),
-    price: item.price_amounts?.[vehicleType] != null
-      ? `${item.price_amounts[vehicleType].toLocaleString(locale === "ru" ? "ru-RU" : locale === "ro" ? "ro-RO" : "en-US")} mdl`
-      : item.prices[vehicleType],
+    price: item.price_amounts?.[pricingVehicleType] != null
+      ? `${item.price_amounts[pricingVehicleType].toLocaleString(locale === "ru" ? "ru-RU" : locale === "ro" ? "ro-RO" : "en-US")} mdl`
+      : item.prices[pricingVehicleType],
     ...serviceVisuals[item.id],
-  })), [settings.services, locale, vehicleType]);
+  })), [settings.services, locale, pricingVehicleType]);
   const brands = useMemo(() => [...new Set(vehicleModels.map(item => item.brand))], [vehicleModels]);
   const brandModels = useMemo(() => vehicleModels.filter(item => item.brand === selectedBrand), [vehicleModels, selectedBrand]);
   const selectedVehicle = useMemo(() => vehicleModels.find(item => String(item.id) === selectedVehicleId), [vehicleModels, selectedVehicleId]);
@@ -196,7 +198,7 @@ export default function Home() {
           <div className="bookingIntro"><span>{text.bookingKicker}</span><h2>{text.bookingTitle}</h2><p>{text.bookingText}</p>{savedBookingToken && <a className="returnBooking" href={`/manage?token=${savedBookingToken}`}>{locale === "ru" ? "Вернуться к моей записи" : locale === "ro" ? "Revino la programarea mea" : "Return to my booking"} →</a>}<div className="steps"><b>1</b><i /><b>2</b><i /><b>3</b></div></div>
           <form className="bookingCard" onSubmit={submitBooking}>
             {status === "success" ? <div className="success"><div>✓</div><h3>{text.success}</h3><p>{date} · {time} · {vehicleLabels[locale][vehicleType]}</p>{managementToken && <a className="manageBookingLink" href={`/manage?token=${managementToken}`}>{locale === "ru" ? "Перенести или отменить запись" : locale === "ro" ? "Modifică sau anulează programarea" : "Reschedule or cancel booking"} →</a>}<button type="button" onClick={() => { setStatus("idle"); setManagementToken(""); }}>{text.again}</button></div> : <>
-              <div className="formStep"><span>01</span><div><h3>{locale === "ru" ? "Выберите автомобиль" : locale === "ro" ? "Alege mașina" : "Choose your car"}</h3><div className="vehiclePicker"><label>{locale === "ru" ? "Марка" : locale === "ro" ? "Marca" : "Make"}<select value={selectedBrand} onChange={event => { setSelectedBrand(event.target.value); setSelectedVehicleId(""); }} required><option value="">{locale === "ru" ? "Выберите марку" : locale === "ro" ? "Alege marca" : "Choose make"}</option>{brands.map(brand => <option value={brand} key={brand}>{brand}</option>)}</select></label><label>{locale === "ru" ? "Модель" : locale === "ro" ? "Modelul" : "Model"}<select value={selectedVehicleId} onChange={event => { const id = event.target.value; setSelectedVehicleId(id); const vehicle = vehicleModels.find(item => String(item.id) === id); if (vehicle) setVehicleType(vehicle.vehicleType); }} disabled={!selectedBrand} required><option value="">{locale === "ru" ? "Выберите модель" : locale === "ro" ? "Alege modelul" : "Choose model"}</option>{brandModels.map(item => <option value={item.id} key={item.id}>{item.model}</option>)}</select></label></div>{selectedVehicle && <div className="selectedVehicle"><img src={`/vehicle-${selectedVehicle.vehicleType}.png`} alt="" /><div><b>{selectedVehicle.brand} {selectedVehicle.model}</b><span>{vehicleLabels[locale][selectedVehicle.vehicleType]}</span></div></div>}<h3 className="serviceQuestion">{text.chooseService}</h3><div className="choiceRow">{services.map(item => <button type="button" className={service === item.id ? "active" : ""} onClick={() => setService(item.id)} key={item.id}>{item.name}<small>{item.price}</small></button>)}</div></div></div>
+              <div className="formStep"><span>01</span><div><h3>{locale === "ru" ? "Выберите автомобиль" : locale === "ro" ? "Alege mașina" : "Choose your car"}</h3><div className="vehiclePicker"><label>{locale === "ru" ? "Марка" : locale === "ro" ? "Marca" : "Make"}<select value={selectedBrand} onChange={event => { setSelectedBrand(event.target.value); setSelectedVehicleId(""); }} required><option value="">{locale === "ru" ? "Выберите марку" : locale === "ro" ? "Alege marca" : "Choose make"}</option>{brands.map(brand => <option value={brand} key={brand}>{brand}</option>)}</select></label><label>{locale === "ru" ? "Модель" : locale === "ro" ? "Modelul" : "Model"}<select value={selectedVehicleId} onChange={event => { const id = event.target.value; setSelectedVehicleId(id); const vehicle = vehicleModels.find(item => String(item.id) === id); if (vehicle) setVehicleType(vehicle.vehicleType); }} disabled={!selectedBrand} required><option value="">{locale === "ru" ? "Выберите модель" : locale === "ro" ? "Alege modelul" : "Choose model"}</option>{brandModels.map(item => <option value={item.id} key={item.id}>{item.model}</option>)}</select></label></div>{selectedVehicle && <div className="selectedVehicle"><img src={`/vehicle-${selectedVehicle.vehicleType === "suv" ? "crossover" : selectedVehicle.vehicleType}.png`} alt="" /><div><b>{selectedVehicle.brand} {selectedVehicle.model}</b><span>{vehicleLabels[locale][selectedVehicle.vehicleType]}</span></div></div>}<h3 className="serviceQuestion">{text.chooseService}</h3><div className="choiceRow">{services.map(item => <button type="button" className={service === item.id ? "active" : ""} onClick={() => setService(item.id)} key={item.id}>{item.name}<small>{item.price}</small></button>)}</div></div></div>
               <div className="formStep"><span>02</span><div><h3>{text.when}</h3><div className="dateRow">{dates.map(item => <button type="button" className={date === item.iso ? "active" : ""} onClick={() => setDate(item.iso)} key={item.iso}><small>{item.day}</small>{item.number}</button>)}</div><div className="slotRow">{availabilitySlots.map(slot => { const occupied = slot.availableBays <= 0; return <button type="button" className={time === slot.time ? "active" : occupied ? "occupied" : ""} onClick={() => setTime(slot.time)} disabled={occupied || availabilityLoading} key={slot.time}>{slot.time}{occupied ? <small>{text.occupied}</small> : slot.availableBays > 1 ? <small>{slot.availableBays} бокса</small> : null}</button>; })}</div>{!availabilityLoading && !time && <p className="noSlots">{text.noSlots}</p>}</div></div>
               <div className="formStep"><span>03</span><div><h3>{text.contact}</h3><div className="fields"><input name="name" aria-label="Name" placeholder={text.name} required /><input name="phone" aria-label="Phone" type="tel" value={customerPhone} onChange={event => setCustomerPhone(event.target.value)} placeholder={text.phone} autoComplete="tel" required /><input name="licensePlate" aria-label="License plate" placeholder={text.plate} autoCapitalize="characters" minLength={2} maxLength={20} required /></div><button className="submit" disabled={status === "loading" || availabilityLoading || !time || !selectedVehicle}>{status === "loading" ? text.loading : availabilityLoading ? text.checking : text.submit}</button>{status === "error" && <p className="error">{message}</p>}</div></div>
             </>}

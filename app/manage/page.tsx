@@ -5,7 +5,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 type ManagedBooking = {
   id: string;
   service: "express" | "complex" | "detailing";
-  vehicleType: "sedan" | "crossover" | "van";
+  vehicleType: "sedan" | "crossover" | "suv" | "van";
   date: string;
   time: string;
   customerName: string;
