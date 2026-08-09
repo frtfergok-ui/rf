@@ -45,6 +45,7 @@ type Customer = { id: string; phone: string; display_name: string; last_car: str
 type Closure = { id: string; closure_date: string; start_time: string | null; end_time: string | null; reason: string; created_at: string };
 type AuditLog = { id: number; actor_id: string | null; action: string; entity_type: string; entity_id: string | null; details: Record<string, unknown>; created_at: string };
 type AvailabilitySlot = { time: string; availableBays: number };
+type VehicleModel = { id: number; brand: string; model: string; vehicle_type: Booking["vehicle_type"]; express_price: number; complex_price: number; detailing_price: number; active: boolean; sort_order: number };
 
 const defaultSiteSettings: SiteSettings = {
   phone: "+7 999 123-45-67",
@@ -152,6 +153,9 @@ export default function StaffPage() {
   const [teamMessage, setTeamMessage] = useState("");
   const [siteSettings, setSiteSettings] = useState<SiteSettings>(defaultSiteSettings);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [vehiclesOpen, setVehiclesOpen] = useState(false);
+  const [vehicleModels, setVehicleModels] = useState<VehicleModel[]>([]);
+  const [vehicleMessage, setVehicleMessage] = useState("");
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [settingsMessage, setSettingsMessage] = useState("");
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -199,6 +203,8 @@ export default function StaffPage() {
     setRequestStatus(null);
     const { data: settings } = await supabase.from("site_settings").select("phone,address,hours,telegram_url,instagram_url,whatsapp_url,tiktok_url,google_maps_url,review_url,opening_time,closing_time,bay_count,slot_interval_minutes,services").eq("id", 1).maybeSingle();
     if (settings) setSiteSettings(settings as SiteSettings);
+    const { data: vehicleRows } = await supabase.from("vehicle_models").select("id,brand,model,vehicle_type,express_price,complex_price,detailing_price,active,sort_order").order("sort_order").order("brand").order("model");
+    setVehicleModels((vehicleRows ?? []) as VehicleModel[]);
     if (staff.role === "owner") {
       const [{ data: requests }, { data: team }, { data: customerRows }, { data: closureRows }, { data: auditRows }] = await Promise.all([
         supabase.from("staff_access_requests").select("user_id,email,display_name,status,created_at").order("created_at", { ascending: false }),
@@ -561,6 +567,25 @@ export default function StaffPage() {
     else setBookings(items => items.map(item => item.id === id ? { ...item, ...changes } as Booking : item));
   }
 
+  async function saveVehicleModel(vehicle: VehicleModel) {
+    setVehicleMessage("");
+    const { error: updateError } = await supabase.from("vehicle_models").update({ brand: vehicle.brand.trim(), model: vehicle.model.trim(), vehicle_type: vehicle.vehicle_type, express_price: Number(vehicle.express_price), complex_price: Number(vehicle.complex_price), detailing_price: Number(vehicle.detailing_price), active: vehicle.active, sort_order: Number(vehicle.sort_order), updated_at: new Date().toISOString() }).eq("id", vehicle.id);
+    setVehicleMessage(updateError ? "Не удалось сохранить модель." : `${vehicle.brand} ${vehicle.model}: цены сохранены.`);
+  }
+
+  async function addVehicleModel() {
+    const { data, error: insertError } = await supabase.from("vehicle_models").insert({ brand: "Новая марка", model: "Новая модель", vehicle_type: "sedan", express_price: 350, complex_price: 790, detailing_price: 2900, active: false, sort_order: 999 }).select("id,brand,model,vehicle_type,express_price,complex_price,detailing_price,active,sort_order").single();
+    if (insertError) setVehicleMessage("Не удалось добавить модель.");
+    else { setVehicleModels(items => [...items, data as VehicleModel]); setVehicleMessage("Модель добавлена — укажи данные и включи её."); }
+  }
+
+  async function deleteVehicleModel(vehicle: VehicleModel) {
+    if (!window.confirm(`Удалить ${vehicle.brand} ${vehicle.model} из каталога?`)) return;
+    const { error: deleteError } = await supabase.from("vehicle_models").delete().eq("id", vehicle.id);
+    if (deleteError) setVehicleMessage("Не удалось удалить модель.");
+    else setVehicleModels(items => items.filter(item => item.id !== vehicle.id));
+  }
+
   async function createWalkIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!session || !walkInTime) return;
@@ -793,7 +818,7 @@ export default function StaffPage() {
     <header className="staffHeader"><div className="staffBrand"><img src="/mall-autowash-logo.png" alt="MALL AUTOWASH" /><span><small>{staffRole === "owner" ? "Панель владельца" : "Панель менеджера"}</small></span></div><div className="staffUser"><button className={liveAlerts ? "alertsOn" : ""} onClick={enableLiveAlerts}>{liveAlerts ? "🔔 Включены" : "🔕 Уведомления"}</button><span><b>{staffName}</b><small>{staffRole === "owner" ? "Владелец" : "Менеджер"} · {session.user.email}</small></span><button onClick={() => supabase.auth.signOut()}>Выйти</button></div></header>
     {toast && <div className="liveToast" role="status"><b>●</b>{toast}<button onClick={() => setToast("")}>×</button></div>}
     <section className="staffContent">
-      <div className="staffTitle"><div><span>ЗАЯВКИ</span><h1>Записи клиентов</h1></div><div className="staffTitleActions">{staffRole === "owner" && <><button className="teamButton" onClick={() => { setTeamOpen(true); setTeamMessage(""); }}>👥 Команда{pendingRequests.length > 0 && <b>{pendingRequests.length}</b>}</button><button onClick={() => setCustomersOpen(true)}>◎ Клиенты</button><button onClick={() => setScheduleSettingsOpen(true)}>▦ График</button><button onClick={() => setAuditOpen(true)}>☷ Журнал</button><button onClick={() => setSecurityOpen(true)}>⌾ Защита</button><button className="ownerSettingsButton" onClick={() => { setSettingsOpen(true); setSettingsMessage(""); }}>⚙ Сайт</button></>}<button className="addWalkIn" onClick={() => { setWalkInOpen(current => !current); setWalkInMessage(""); }}>+ Клиент на месте</button><button onClick={loadDashboard} disabled={loading}>{loading ? "Обновляем…" : "↻ Обновить"}</button></div></div>
+      <div className="staffTitle"><div><span>ЗАЯВКИ</span><h1>Записи клиентов</h1></div><div className="staffTitleActions">{staffRole === "owner" && <><button className="teamButton" onClick={() => { setTeamOpen(true); setTeamMessage(""); }}>👥 Команда{pendingRequests.length > 0 && <b>{pendingRequests.length}</b>}</button><button onClick={() => setCustomersOpen(true)}>◎ Клиенты</button><button onClick={() => setScheduleSettingsOpen(true)}>▦ График</button><button onClick={() => setAuditOpen(true)}>☷ Журнал</button><button onClick={() => setSecurityOpen(true)}>⌾ Защита</button><button onClick={() => { setVehiclesOpen(true); setVehicleMessage(""); }}>🚗 Автомобили</button><button className="ownerSettingsButton" onClick={() => { setSettingsOpen(true); setSettingsMessage(""); }}>⚙ Сайт</button></>}<button className="addWalkIn" onClick={() => { setWalkInOpen(current => !current); setWalkInMessage(""); }}>+ Клиент на месте</button><button onClick={loadDashboard} disabled={loading}>{loading ? "Обновляем…" : "↻ Обновить"}</button></div></div>
       <div className="staffStats"><button className={filter === "new" ? "active" : ""} onClick={() => setFilter("new")}><span>Новые</span><b>{counts.new}</b></button><button className={filter === "confirmed" ? "active" : ""} onClick={() => setFilter("confirmed")}><span>Подтверждены</span><b>{counts.confirmed}</b></button><button className={filter === "completed" ? "active" : ""} onClick={() => setFilter("completed")}><span>Выполнены</span><b>{counts.completed}</b></button><button className={filter === "all" ? "active" : ""} onClick={() => setFilter("all")}><span>Все</span><b>{counts.all}</b></button></div>
       {staffRole === "owner" && <section className="staffReport" aria-label="Отчёт по выполненным машинам"><div className="reportHead"><span>ОТЧЁТ ВЛАДЕЛЬЦА</span><h2>Результаты мойки</h2><small>Менеджеры этот блок не видят</small></div><div className="reportNumbers"><div><span>Сегодня</span><b>{report.today}</b><small>машин</small></div><div><span>7 дней</span><b>{report.week}</b><small>машин</small></div><div className="reportAccent"><span>Выручка</span><b>{report.revenue.toLocaleString("ru-RU")}</b><small>mdl за месяц</small></div><div><span>Загрузка</span><b>{report.load}%</b><small>за месяц</small></div><div><span>Хит</span><b className="reportWord">{serviceNames[report.popular]}</b><small>{report.month} выполнено</small></div></div></section>}
       <div className="staffSearch"><span>⌕</span><input type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Поиск по имени, телефону, машине или госномеру" aria-label="Поиск заявок" />{search && <button onClick={() => setSearch("")} aria-label="Очистить поиск">×</button>}</div>
@@ -847,6 +872,19 @@ export default function StaffPage() {
       <div className="walkInHead"><div><small>ЗАЩИТА ВЛАДЕЛЬЦА</small><h2 id="security-title">Двухфакторный вход</h2><p>Подключи Google Authenticator, Microsoft Authenticator или 1Password.</p></div><button type="button" onClick={() => setSecurityOpen(false)} aria-label="Закрыть">×</button></div>
       {!mfaQr ? <button className="saveWalkIn" onClick={startMfaEnrollment}>Создать QR-код защиты →</button> : <div className="mfaEnroll"><img src={mfaQr} alt="QR-код для Authenticator" /><label>Код из приложения<input value={mfaCode} onChange={event => setMfaCode(event.target.value.replace(/\D/g, "").slice(0, 6))} inputMode="numeric" /></label><button onClick={finishMfaEnrollment}>Включить 2FA →</button></div>}
       {mfaMessage && <p className="securityMessage">{mfaMessage}</p>}
+    </section></div>}
+    {vehiclesOpen && staffRole === "owner" && <div className="rescheduleOverlay" role="dialog" aria-modal="true" aria-labelledby="vehicles-title"><section className="rescheduleCard vehicleCatalogCard">
+      <div className="walkInHead"><div><small>ТОЛЬКО ДЛЯ ВЛАДЕЛЬЦА</small><h2 id="vehicles-title">Автомобили и цены</h2><p>Цена каждой услуги задаётся отдельно для конкретной модели. Выключенная модель не показывается клиентам.</p></div><button type="button" onClick={() => setVehiclesOpen(false)} aria-label="Закрыть">×</button></div>
+      <div className="vehicleCatalogActions"><b>{vehicleModels.length} моделей</b><button onClick={addVehicleModel}>+ Добавить модель</button></div>
+      <div className="vehicleCatalogList">{vehicleModels.map((vehicle, index) => <article className={!vehicle.active ? "inactive" : ""} key={vehicle.id}>
+        <input aria-label="Марка" value={vehicle.brand} onChange={event => setVehicleModels(items => items.map((item, itemIndex) => itemIndex === index ? { ...item, brand: event.target.value } : item))} />
+        <input aria-label="Модель" value={vehicle.model} onChange={event => setVehicleModels(items => items.map((item, itemIndex) => itemIndex === index ? { ...item, model: event.target.value } : item))} />
+        <select aria-label="Тип кузова" value={vehicle.vehicle_type} onChange={event => setVehicleModels(items => items.map((item, itemIndex) => itemIndex === index ? { ...item, vehicle_type: event.target.value as Booking["vehicle_type"] } : item))}><option value="sedan">Седан</option><option value="crossover">Кроссовер</option><option value="van">Минивэн</option></select>
+        {(["express_price", "complex_price", "detailing_price"] as const).map((field, priceIndex) => <label key={field}><span>{["Экспресс", "Комплекс", "Детейлинг"][priceIndex]}</span><input type="number" min="0" value={vehicle[field]} onChange={event => setVehicleModels(items => items.map((item, itemIndex) => itemIndex === index ? { ...item, [field]: Number(event.target.value) } : item))} /></label>)}
+        <label className="vehicleActive"><input type="checkbox" checked={vehicle.active} onChange={event => setVehicleModels(items => items.map((item, itemIndex) => itemIndex === index ? { ...item, active: event.target.checked } : item))} /> На сайте</label>
+        <div><button className="vehicleSave" onClick={() => saveVehicleModel(vehicle)}>Сохранить</button><button className="vehicleDelete" onClick={() => deleteVehicleModel(vehicle)}>Удалить</button></div>
+      </article>)}</div>
+      {vehicleMessage && <p className="vehicleMessage">{vehicleMessage}</p>}
     </section></div>}
     {settingsOpen && staffRole === "owner" && <div className="rescheduleOverlay" role="dialog" aria-modal="true" aria-labelledby="settings-title"><form className="rescheduleCard settingsCard" onSubmit={saveSettings}>
       <div className="walkInHead"><div><small>ТОЛЬКО ДЛЯ ВЛАДЕЛЬЦА</small><h2 id="settings-title">Настройки сайта</h2><p>После сохранения данные сразу обновятся на сайте клиентов.</p></div><button type="button" onClick={() => setSettingsOpen(false)} aria-label="Закрыть">×</button></div>
