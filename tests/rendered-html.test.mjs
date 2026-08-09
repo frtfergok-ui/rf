@@ -63,6 +63,9 @@ test("ships smart booking, customer self-service, CRM and PWA capabilities", asy
   assert.match(staffPage, /Попросить отзыв/);
   assert.match(bookingApi, /create_booking_secure/);
   assert.match(managePage, /Перенести запись/);
+  assert.match(staffPage, /reminder_sent_at/);
+  assert.match(managePage, /mall-autowash-booking-token/);
+  assert.match(await readFile(new URL("../app/page.tsx", import.meta.url), "utf8"), /Вернуться к моей записи/);
   assert.match(manifest, /"display": "standalone"/);
   assert.match(migration, /enforce_booking_capacity/);
   assert.match(migration, /owners can delete bookings/);

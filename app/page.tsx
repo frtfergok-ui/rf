@@ -25,6 +25,7 @@ const defaultSettings: SiteSettings = {
 };
 
 const serviceVisuals: Record<ServiceConfig["id"], { icon: string; popular: boolean }> = { express: { icon: "↗", popular: false }, complex: { icon: "✦", popular: true }, detailing: { icon: "◇", popular: false } };
+const savedBookingKey = "mall-autowash-booking-token";
 const vehicleLabels: Record<Locale, Record<VehicleType, string>> = {
   ru: { sedan: "Седан", crossover: "Кроссовер", van: "Минивэн" },
   ro: { sedan: "Sedan", crossover: "Crossover", van: "Minivan" },
@@ -65,6 +66,8 @@ export default function Home() {
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [message, setMessage] = useState("");
   const [managementToken, setManagementToken] = useState("");
+  const [savedBookingToken, setSavedBookingToken] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("+373");
   const text = copy[locale];
   const displayedHours = settings.hours === defaultSettings.hours ? ({ ru: settings.hours, ro: "Zilnic 10:00–22:00", en: "Daily 10:00–22:00" } as const)[locale] : settings.hours;
   const tickerText = locale === "ru" ? "БЕЗОПАСНАЯ ХИМИЯ ✦ БЕЗ РАЗВОДОВ ✦ ГАРАНТИЯ КАЧЕСТВА ✦ ЗАПИСЬ ЗА 30 СЕКУНД ✦" : locale === "ro" ? "PRODUSE SIGURE ✦ FĂRĂ URME ✦ GARANȚIA CALITĂȚII ✦ PROGRAMARE ÎN 30 DE SECUNDE ✦" : "SAFE PRODUCTS ✦ STREAK-FREE ✦ QUALITY GUARANTEE ✦ BOOK IN 30 SECONDS ✦";
@@ -78,6 +81,7 @@ export default function Home() {
   const phoneHref = `tel:${settings.phone.replace(/[^\d+]/g, "")}`;
 
   useEffect(() => {
+    setSavedBookingToken(window.localStorage.getItem(savedBookingKey) ?? "");
     let active = true;
     fetch("/api/settings", { cache: "no-store" })
       .then(async response => {
@@ -120,7 +124,10 @@ export default function Home() {
       const response = await fetch("/api/bookings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       const data = (await response.json()) as { error?: string; managementToken?: string };
       if (!response.ok) throw new Error(data.error || "Не удалось создать запись");
-      setManagementToken(data.managementToken ?? "");
+      const nextToken = data.managementToken ?? "";
+      setManagementToken(nextToken);
+      setSavedBookingToken(nextToken);
+      if (nextToken) window.localStorage.setItem(savedBookingKey, nextToken);
       setAvailabilitySlots(current => current.map(slot => slot.time === time ? { ...slot, availableBays: Math.max(0, slot.availableBays - 1) } : slot));
       setStatus("success");
     } catch (error) {
@@ -168,12 +175,12 @@ export default function Home() {
 
       <section className="bookingSection" id="booking">
         <div className="shell bookingGrid">
-          <div className="bookingIntro"><span>{text.bookingKicker}</span><h2>{text.bookingTitle}</h2><p>{text.bookingText}</p><div className="steps"><b>1</b><i /><b>2</b><i /><b>3</b></div></div>
+          <div className="bookingIntro"><span>{text.bookingKicker}</span><h2>{text.bookingTitle}</h2><p>{text.bookingText}</p>{savedBookingToken && <a className="returnBooking" href={`/manage?token=${savedBookingToken}`}>{locale === "ru" ? "Вернуться к моей записи" : locale === "ro" ? "Revino la programarea mea" : "Return to my booking"} →</a>}<div className="steps"><b>1</b><i /><b>2</b><i /><b>3</b></div></div>
           <form className="bookingCard" onSubmit={submitBooking}>
             {status === "success" ? <div className="success"><div>✓</div><h3>{text.success}</h3><p>{date} · {time} · {vehicleLabels[locale][vehicleType]}</p>{managementToken && <a className="manageBookingLink" href={`/manage?token=${managementToken}`}>{locale === "ru" ? "Перенести или отменить запись" : locale === "ro" ? "Modifică sau anulează programarea" : "Reschedule or cancel booking"} →</a>}<button type="button" onClick={() => { setStatus("idle"); setManagementToken(""); }}>{text.again}</button></div> : <>
               <div className="formStep"><span>01</span><div><h3>{text.chooseCar}</h3><div className="vehicleRow">{(["sedan", "crossover", "van"] as VehicleType[]).map(item => <button type="button" className={vehicleType === item ? "active" : ""} onClick={() => setVehicleType(item)} key={item}><span className="vehicleIcon" aria-hidden="true"><img src={`/vehicle-${item}.png`} alt="" /></span><small>{vehicleLabels[locale][item]}</small></button>)}</div><h3 className="serviceQuestion">{text.chooseService}</h3><div className="choiceRow">{services.map(item => <button type="button" className={service === item.id ? "active" : ""} onClick={() => setService(item.id)} key={item.id}>{item.name}<small>{item.price}</small></button>)}</div></div></div>
               <div className="formStep"><span>02</span><div><h3>{text.when}</h3><div className="dateRow">{dates.map(item => <button type="button" className={date === item.iso ? "active" : ""} onClick={() => setDate(item.iso)} key={item.iso}><small>{item.day}</small>{item.number}</button>)}</div><div className="slotRow">{availabilitySlots.map(slot => { const occupied = slot.availableBays <= 0; return <button type="button" className={time === slot.time ? "active" : occupied ? "occupied" : ""} onClick={() => setTime(slot.time)} disabled={occupied || availabilityLoading} key={slot.time}>{slot.time}{occupied ? <small>{text.occupied}</small> : slot.availableBays > 1 ? <small>{slot.availableBays} бокса</small> : null}</button>; })}</div>{!availabilityLoading && !time && <p className="noSlots">{text.noSlots}</p>}</div></div>
-              <div className="formStep"><span>03</span><div><h3>{text.contact}</h3><div className="fields"><input name="name" aria-label="Name" placeholder={text.name} required /><input name="phone" aria-label="Phone" type="tel" placeholder={text.phone} required /><input name="car" aria-label="Car" placeholder={text.car} required /><input name="licensePlate" aria-label="License plate" placeholder={text.plate} autoCapitalize="characters" minLength={2} maxLength={20} required /></div><button className="submit" disabled={status === "loading" || availabilityLoading || !time}>{status === "loading" ? text.loading : availabilityLoading ? text.checking : text.submit}</button>{status === "error" && <p className="error">{message}</p>}</div></div>
+              <div className="formStep"><span>03</span><div><h3>{text.contact}</h3><div className="fields"><input name="name" aria-label="Name" placeholder={text.name} required /><input name="phone" aria-label="Phone" type="tel" value={customerPhone} onChange={event => setCustomerPhone(event.target.value)} placeholder={text.phone} autoComplete="tel" required /><input name="car" aria-label="Car" placeholder={text.car} required /><input name="licensePlate" aria-label="License plate" placeholder={text.plate} autoCapitalize="characters" minLength={2} maxLength={20} required /></div><button className="submit" disabled={status === "loading" || availabilityLoading || !time}>{status === "loading" ? text.loading : availabilityLoading ? text.checking : text.submit}</button>{status === "error" && <p className="error">{message}</p>}</div></div>
             </>}
           </form>
         </div>

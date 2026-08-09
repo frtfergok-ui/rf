@@ -17,6 +17,7 @@ type ManagedBooking = {
 };
 
 type Slot = { time: string; availableBays: number };
+const savedBookingKey = "mall-autowash-booking-token";
 
 function localDate(offset = 0) {
   const value = new Date();
@@ -40,7 +41,7 @@ export default function ManageBookingPage() {
   const [result, setResult] = useState<"rescheduled" | "cancelled" | null>(null);
 
   useEffect(() => {
-    const nextToken = new URLSearchParams(window.location.search).get("token") ?? "";
+    const nextToken = new URLSearchParams(window.location.search).get("token") ?? window.localStorage.getItem(savedBookingKey) ?? "";
     setToken(nextToken);
     if (!nextToken) {
       setMessage("Ссылка на запись недействительна.");
@@ -54,6 +55,7 @@ export default function ManageBookingPage() {
         return data;
       })
       .then(data => {
+        window.localStorage.setItem(savedBookingKey, nextToken);
         setBooking(data);
         setDate(data.date);
         setTime(data.time.slice(0, 5));
