@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 
-const allowedServices = new Set(["express", "complex", "detailing"]);
+const allowedServices = new Set(["express", "complex", "detailing", "wheel_cleaning", "leather_conditioning", "hydropolymer"]);
 const allowedVehicleTypes = new Set(["sedan", "crossover", "suv", "van"]);
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 const timePattern = /^\d{2}:\d{2}$/;

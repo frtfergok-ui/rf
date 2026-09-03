@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 
 type ManagedBooking = {
   id: string;
-  service: "express" | "complex" | "detailing";
+  service: "express" | "complex" | "detailing" | "wheel_cleaning" | "leather_conditioning" | "hydropolymer";
   vehicleType: "sedan" | "crossover" | "suv" | "van";
   date: string;
   time: string;

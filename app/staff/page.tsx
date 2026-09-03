@@ -6,9 +6,10 @@ import { supabase } from "../../lib/supabase-browser";
 
 type BookingStatus = "new" | "confirmed" | "completed" | "cancelled";
 
+type ServiceId = "express" | "complex" | "detailing" | "wheel_cleaning" | "leather_conditioning" | "hydropolymer";
 type Booking = {
   id: string;
-  service: "express" | "complex" | "detailing";
+  service: ServiceId;
   vehicle_type: "sedan" | "crossover" | "suv" | "van";
   booking_date: string;
   booking_time: string;
@@ -38,7 +39,7 @@ type Booking = {
 
 type StaffRole = "owner" | "manager";
 type PricingVehicleType = Exclude<Booking["vehicle_type"], "suv">;
-type ServiceConfig = { id: Booking["service"]; name: string; note: string; prices: Record<PricingVehicleType, string>; price_amounts?: Record<PricingVehicleType, number>; time: string; duration_minutes?: number };
+type ServiceConfig = { id: ServiceId; name: string; note: string; prices: Record<PricingVehicleType, string>; price_amounts?: Record<PricingVehicleType, number>; time: string; duration_minutes?: number };
 type SiteSettings = { phone: string; address: string; hours: string; telegram_url: string; instagram_url: string; whatsapp_url: string; tiktok_url: string; google_maps_url: string; review_url: string; opening_time: string; closing_time: string; bay_count: number; slot_interval_minutes: number; services: ServiceConfig[] };
 type AccessRequest = { user_id: string; email: string; display_name: string; status: "pending" | "approved" | "rejected"; created_at: string };
 type TeamMember = { id: string; email: string; display_name: string; role: StaffRole; active: boolean; created_at: string };
@@ -66,6 +67,9 @@ const defaultSiteSettings: SiteSettings = {
     { id: "express", name: "Экспресс", note: "Кузов · диски · сушка", prices: { sedan: "350 ₽", crossover: "450 ₽", van: "550 ₽" }, time: "25 мин" },
     { id: "complex", name: "Комплекс", note: "Кузов · салон · стёкла", prices: { sedan: "790 ₽", crossover: "950 ₽", van: "1 150 ₽" }, time: "55 мин" },
     { id: "detailing", name: "Детейлинг", note: "Глубокая чистка и защита", prices: { sedan: "от 2 900 ₽", crossover: "от 3 500 ₽", van: "от 4 200 ₽" }, time: "2–3 часа" },
+    { id: "wheel_cleaning", name: "Химчистка дисков", note: "Глубокая очистка дисков", prices: { sedan: "от 250 MDL", crossover: "от 300 MDL", van: "от 350 MDL" }, price_amounts: { sedan: 250, crossover: 300, van: 350 }, time: "30 мин", duration_minutes: 30 },
+    { id: "leather_conditioning", name: "Чистка кондиционера и кожи", note: "Для салона 5 мест / 7 мест", prices: { sedan: "от 600 MDL", crossover: "от 750 MDL", van: "от 900 MDL" }, price_amounts: { sedan: 600, crossover: 750, van: 900 }, time: "45 мин", duration_minutes: 45 },
+    { id: "hydropolymer", name: "Гидрополимер", note: "Защитное гидрополимерное покрытие", prices: { sedan: "от 450 MDL", crossover: "от 550 MDL", van: "от 650 MDL" }, price_amounts: { sedan: 450, crossover: 550, van: 650 }, time: "25 мин", duration_minutes: 25 },
   ],
 };
 const statusNames: Record<BookingStatus, string> = { new: "Новая", confirmed: "Подтверждена", completed: "Выполнена", cancelled: "Отменена" };
@@ -203,7 +207,11 @@ export default function StaffPage() {
     setStaffRole(staff.role as StaffRole);
     setRequestStatus(null);
     const { data: settings } = await supabase.from("site_settings").select("phone,address,hours,telegram_url,instagram_url,whatsapp_url,tiktok_url,google_maps_url,review_url,opening_time,closing_time,bay_count,slot_interval_minutes,services").eq("id", 1).maybeSingle();
-    if (settings) setSiteSettings(settings as SiteSettings);
+    if (settings) {
+      const incoming = settings as SiteSettings;
+      const byId = new Map(incoming.services.map(item => [item.id, item]));
+      setSiteSettings({ ...defaultSiteSettings, ...incoming, services: defaultSiteSettings.services.map(item => byId.get(item.id) ?? item) });
+    }
     const { data: vehicleRows } = await supabase.from("vehicle_models").select("id,brand,model,vehicle_type,express_price,complex_price,detailing_price,active,sort_order").order("sort_order").order("brand").order("model");
     setVehicleModels((vehicleRows ?? []) as VehicleModel[]);
     if (staff.role === "owner") {

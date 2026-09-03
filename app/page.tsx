@@ -5,14 +5,15 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 type Locale = "ro" | "ru" | "en";
 type VehicleType = "sedan" | "crossover" | "suv" | "van";
 type PricingVehicleType = Exclude<VehicleType, "suv">;
-type ServiceConfig = { id: "express" | "complex" | "detailing"; name: string; note: string; prices: Record<PricingVehicleType, string>; price_amounts?: Record<PricingVehicleType, number>; time: string; duration_minutes?: number };
+type ServiceId = "express" | "complex" | "detailing" | "wheel_cleaning" | "leather_conditioning" | "hydropolymer";
+type ServiceConfig = { id: ServiceId; name: string; note: string; prices: Record<PricingVehicleType, string>; price_amounts?: Record<PricingVehicleType, number>; time: string; duration_minutes?: number };
 type SiteSettings = { phone: string; address: string; hours: string; telegramUrl: string; instagramUrl: string; whatsappUrl: string; tiktokUrl: string; googleMapsUrl: string; reviewUrl?: string; openingTime?: string; closingTime?: string; bayCount?: number; services: ServiceConfig[] };
 type AvailabilitySlot = { time: string; availableBays: number };
-type VehicleModel = { id: number; brand: string; model: string; vehicleType: VehicleType; prices: Record<ServiceConfig["id"], number> };
+type VehicleModel = { id: number; brand: string; model: string; vehicleType: VehicleType; prices: Partial<Record<ServiceConfig["id"], number>> };
 
 const defaultSettings: SiteSettings = {
-  phone: "+7 999 123-45-67",
-  address: "ул. Автомобильная, 12",
+  phone: "+373 (68) 210010",
+  address: "str. Nicolai Iorga 5 , EVIMALL",
   hours: "Ежедневно 10:00–22:00",
   telegramUrl: "https://t.me/",
   instagramUrl: "https://www.instagram.com/",
@@ -20,22 +21,20 @@ const defaultSettings: SiteSettings = {
   tiktokUrl: "https://www.tiktok.com/",
   googleMapsUrl: "https://www.google.com/maps/search/?api=1&query=BALTI+EVIMALL",
   services: [
-    { id: "express", name: "Экспресс", note: "Кузов · диски · сушка", prices: { sedan: "350 ₽", crossover: "450 ₽", van: "550 ₽" }, time: "25 мин" },
-    { id: "complex", name: "Комплекс", note: "Кузов · салон · стёкла", prices: { sedan: "790 ₽", crossover: "950 ₽", van: "1 150 ₽" }, time: "55 мин" },
-    { id: "detailing", name: "Детейлинг", note: "Глубокая чистка и защита", prices: { sedan: "от 2 900 ₽", crossover: "от 3 500 ₽", van: "от 4 200 ₽" }, time: "2–3 часа" },
+
   ],
 };
 
-const serviceVisuals: Record<ServiceConfig["id"], { icon: string; popular: boolean }> = { express: { icon: "↗", popular: false }, complex: { icon: "✦", popular: true }, detailing: { icon: "◇", popular: false } };
+const serviceVisuals: Record<ServiceConfig["id"], { icon: string; popular: boolean }> = { express: { icon: "↗", popular: false }, complex: { icon: "✦", popular: true }, detailing: { icon: "◇", popular: false }, wheel_cleaning: { icon: "◌", popular: false }, leather_conditioning: { icon: "⌁", popular: false }, hydropolymer: { icon: "✧", popular: false } };
 const savedBookingKey = "mall-autowash-booking-token";
 const vehicleLabels: Record<Locale, Record<VehicleType, string>> = {
   ru: { sedan: "Седан", crossover: "Кроссовер", suv: "SUV", van: "Минивэн" },
   ro: { sedan: "Sedan", crossover: "Crossover", suv: "SUV", van: "Minivan" },
   en: { sedan: "Sedan", crossover: "Crossover", suv: "SUV", van: "Minivan" },
 };
-const serviceTranslations: Record<Exclude<Locale, "ru">, Record<ServiceConfig["id"], { name: string; note: string; time: string }>> = {
-  ro: { express: { name: "Express", note: "Caroserie · jante · uscare", time: "25 min" }, complex: { name: "Complex", note: "Caroserie · salon · geamuri", time: "55 min" }, detailing: { name: "Detailing", note: "Curățare profundă și protecție", time: "2–3 ore" } },
-  en: { express: { name: "Express", note: "Body · wheels · drying", time: "25 min" }, complex: { name: "Complete", note: "Body · interior · windows", time: "55 min" }, detailing: { name: "Detailing", note: "Deep cleaning and protection", time: "2–3 hours" } },
+const serviceTranslations: Record<Exclude<Locale, "ru">, Partial<Record<ServiceConfig["id"], { name: string; note: string; time: string }>>> = {
+  ro: { express: { name: "Express", note: "Caroserie · jante · uscare", time: "25 min" }, complex: { name: "Complex", note: "Caroserie · salon · geamuri", time: "55 min" }, detailing: { name: "Detailing", note: "Curățare profundă și protecție", time: "2–3 ore" }, wheel_cleaning: { name: "Curățare jante", note: "Curățare profundă a jantelor", time: "30 min" }, leather_conditioning: { name: "Îngrijire piele", note: "Curățare și condiționare · 5/7 locuri", time: "45 min" }, hydropolymer: { name: "Hidropolimer", note: "Protecție hidropolimerică", time: "25 min" } },
+  en: { express: { name: "Express", note: "Body · wheels · drying", time: "25 min" }, complex: { name: "Complete", note: "Body · interior · windows", time: "55 min" }, detailing: { name: "Detailing", note: "Deep cleaning and protection", time: "2–3 hours" }, wheel_cleaning: { name: "Wheel cleaning", note: "Deep wheel cleaning", time: "30 min" }, leather_conditioning: { name: "Leather care", note: "Cleaning and conditioning · 5/7 seats", time: "45 min" }, hydropolymer: { name: "Hydropolymer", note: "Hydropolymer protection", time: "25 min" } },
 };
 const copy = {
   ru: { services: "Услуги", booking: "Запись", contacts: "Контакты", eyebrow: "Автомойка нового поколения", hero: <>ЧИСТОТА,<br />КОТОРУЮ <em>ВИДНО.</em></>, heroText: "Бережная мойка, профессиональная химия и внимание к каждой детали. Пока мы занимаемся машиной — ты отдыхаешь.", book: "Записаться онлайн", schedule: "График работы", serviceKicker: "01 / УСЛУГИ", serviceTitle: <>Выбери свой<br />уровень чистоты</>, serviceText: <>Честные цены без доплат на месте.<br />Всё необходимое уже включено.</>, bookingKicker: "02 / ОНЛАЙН-ЗАПИСЬ", bookingTitle: <>ТВОЯ МАШИНА.<br /><em>ТВОЁ ВРЕМЯ.</em></>, bookingText: "Выбери удобное окно — мы подготовим бокс и будем ждать тебя без очереди.", chooseCar: "Какой кузов?", chooseService: "Что моем?", when: "Когда удобно?", contact: "Как с тобой связаться?", name: "Ваше имя", phone: "+373 ___ ___ ___", car: "Марка и модель авто", plate: "Госномер авто, например ABC 123", submit: "Подтвердить запись →", loading: "Создаём запись…", checking: "Проверяем время…", occupied: "занято", noSlots: "На этот день всё занято — выбери другую дату.", success: "Запись создана!", again: "Создать ещё запись", address: "АДРЕС", reach: "СВЯЗАТЬСЯ", slogan: "Чистота без компромиссов." },
@@ -65,7 +64,7 @@ export default function Home() {
   const [brandSearchOpen, setBrandSearchOpen] = useState(false);
   const [brandActiveIndex, setBrandActiveIndex] = useState(0);
   const [selectedVehicleId, setSelectedVehicleId] = useState("");
-  const [service, setService] = useState("complex");
+  const [service, setService] = useState<ServiceId>("complex");
   const [date, setDate] = useState(dates[0].iso);
   const [time, setTime] = useState("12:00");
   const [availabilitySlots, setAvailabilitySlots] = useState<AvailabilitySlot[]>(fallbackSlots.map(slot => ({ time: slot, availableBays: 1 })));
@@ -82,11 +81,11 @@ export default function Home() {
   const pricingVehicleType: PricingVehicleType = vehicleType === "suv" ? "van" : vehicleType;
   const services = useMemo(() => settings.services.map(item => ({
     ...item,
-    ...(locale === "ru" ? {} : serviceTranslations[locale][item.id]),
+    ...(locale === "ru" ? {} : (serviceTranslations[locale][item.id] ?? {})),
     price: item.price_amounts?.[pricingVehicleType] != null
       ? `${item.price_amounts[pricingVehicleType].toLocaleString(locale === "ru" ? "ru-RU" : locale === "ro" ? "ro-RO" : "en-US")} mdl`
       : item.prices[pricingVehicleType],
-    ...serviceVisuals[item.id],
+    ...(serviceVisuals[item.id] ?? { icon: "✦", popular: false }),
   })), [settings.services, locale, pricingVehicleType]);
   const brands = useMemo(() => [...new Set(vehicleModels.map(item => item.brand))], [vehicleModels]);
   const filteredBrands = useMemo(() => {
