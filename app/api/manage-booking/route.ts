@@ -2,8 +2,8 @@ import { env } from "cloudflare:workers";
 
 function config() {
   const runtimeEnv = env as unknown as Record<string, string | undefined>;
-  const url = runtimeEnv.SUPABASE_URL || process.env.SUPABASE_URL || "https://cnkbysjdjkhbrhwlfqpz.supabase.co";
-  const key = runtimeEnv.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_PUBLISHABLE_KEY || "sb_publishable_3ZoiEU3BlvomX1lEcs8Cmw_RxFK6PcT";
+  const url = "https://cnkbysjdjkhbrhwlfqpz.supabase.co";
+  const key = "sb_publishable_3ZoiEU3BlvomX1lEcs8Cmw_RxFK6PcT";
   if (!url || !key) throw new Error("config");
   return { url, key };
 }

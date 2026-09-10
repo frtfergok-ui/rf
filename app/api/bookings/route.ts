@@ -7,8 +7,8 @@ const timePattern = /^\d{2}:\d{2}$/;
 
 function getSupabaseConfig() {
   const runtimeEnv = env as unknown as Record<string, string | undefined>;
-  const supabaseUrl = runtimeEnv.SUPABASE_URL || process.env.SUPABASE_URL || "https://cnkbysjdjkhbrhwlfqpz.supabase.co";
-  const publishableKey = runtimeEnv.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_PUBLISHABLE_KEY || "sb_publishable_3ZoiEU3BlvomX1lEcs8Cmw_RxFK6PcT";
+  const supabaseUrl = "https://cnkbysjdjkhbrhwlfqpz.supabase.co";
+  const publishableKey = "sb_publishable_3ZoiEU3BlvomX1lEcs8Cmw_RxFK6PcT";
   if (!supabaseUrl || !publishableKey) throw new Error("Supabase environment is not configured");
   return { supabaseUrl, publishableKey };
 }
